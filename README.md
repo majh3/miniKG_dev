@@ -1,7 +1,5 @@
 # MiniKG
 
-Minimal code for running MiniKG on Family and YAGO3-10.
-
 ## Setup
 
 ```bash
