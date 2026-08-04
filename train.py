@@ -1,4 +1,4 @@
-"""Champion training loop shared by Family and YAGO3-10."""
+
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import torch
 try:
     from .backend_args import build_backend_args
     from .data import build_truth_lookup as build_truth_by_query
-    from .decode import evaluate_threshold_policies
+    from .decode import decode_compression_probe, decode_query_topk_oracle, evaluate_threshold_policies
     from .facts import encode_membership_keys, fact_count, facts_to_tensor, infer_entity_relation_count
     from .final_model import build_model, build_optimizers
     from .gate_grad_normalization import apply_balanced_global_travel
@@ -26,7 +26,7 @@ try:
 except ImportError:
     from backend_args import build_backend_args
     from data import build_truth_lookup as build_truth_by_query
-    from decode import evaluate_threshold_policies
+    from decode import decode_compression_probe, decode_query_topk_oracle, evaluate_threshold_policies
     from facts import encode_membership_keys, fact_count, facts_to_tensor, infer_entity_relation_count
     from final_model import build_model, build_optimizers
     from gate_grad_normalization import apply_balanced_global_travel
@@ -43,6 +43,21 @@ def append_curve_record(path_text: str, record: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def _advance_early_stop(
+    dataset: str,
+    step: int,
+    rate: float,
+    material_rate: float,
+    stale_probes: int,
+) -> tuple[float, int, bool]:
+    if rate < material_rate - 0.0005:
+        return rate, 0, False
+    if step < (1600 if dataset == "family" else 6000):
+        return material_rate, 0, False
+    stale_probes += 1
+    return material_rate, stale_probes, stale_probes >= (4 if dataset == "family" else 5)
 
 
 def seed_everything(cfg: SimpleNamespace, device: torch.device) -> torch.Generator:
@@ -88,7 +103,14 @@ def membership_keys(facts, facts_tensor, entity_count, relation_count, args, tag
     return keys
 
 
-def evaluate(model, facts, graph, entity_count, relation_count, args, cfg) -> list[DecodeMetrics]:
+def evaluate(
+    model, facts, graph, entity_count, relation_count, args, cfg,
+    bundle_dir: str | None = None,
+) -> list[DecodeMetrics]:
+    if bundle_dir is not None:
+        return [decode_query_topk_oracle(
+            model, facts, graph, entity_count, relation_count, args, bundle_dir=bundle_dir,
+        )]
     return evaluate_threshold_policies(
         model, facts, graph, entity_count, relation_count, args,
         ["query_topk_oracle"], "",
@@ -98,10 +120,13 @@ def evaluate(model, facts, graph, entity_count, relation_count, args, cfg) -> li
 def configure_gate_learning_rate(model, optimizers, args, cfg, steps: int, n_facts: int, tag: str) -> None:
     travel = abs(math.log(0.8 / (1.0 - 0.8)) - math.log(0.05 / (1.0 - 0.05)))
     tau = float(model.supply_temperature)
-    sparse_touches = (512 if cfg.dataset == "family" else 2048) * steps / max(float(n_facts), 1.0)
-    # Both champion recipes use auto mode with pressure start at step zero.
+    sparse_touches = (512 if cfg.dataset in {"family", "freebase", "wikidata5m"} else 2048) * steps / max(float(n_facts), 1.0)
+                                                                           
     touches = max(float(steps), 1.0)
-    gate_lr = cfg.kappa * travel * tau * tau / (touches * 0.25)
+    gate_lr = (
+        cfg.kappa if cfg.dataset in {"family", "yago3-10"}
+        else 2048.0 if cfg.dataset == "wikidata5m" else 32768.0
+    ) * travel * tau * tau / (touches * 0.25)
     for optimizer in optimizers:
         for group in optimizer.param_groups:
             if any(parameter is model.weight_param for parameter in group["params"]):
@@ -117,26 +142,39 @@ def configure_gate_learning_rate(model, optimizers, args, cfg, steps: int, n_fac
 
 
 def train_once(facts: np.ndarray, orientation_inverse: np.ndarray, cfg: SimpleNamespace,
-               steps: int, tag: str, collect_curve: bool = False):
+               steps: int, tag: str, collect_curve: bool = False,
+               target_relations: list[int] | None = None,
+               initial_state: dict[str, torch.Tensor] | None = None,
+               write_query_bundle: bool = True):
     device = torch.device("cuda")
     entity_count, relation_count = infer_entity_relation_count(facts)
     args = build_backend_args(cfg, orientation_inverse, device)
     facts_tensor = facts_to_tensor(facts, device)
     graph = Graph(facts_tensor)
     truth_by_query = (build_truth_by_query(facts, orientation_inverse)
-                      if cfg.dataset == "yago3-10" else {})
+                      if cfg.dataset != "family" else {})
     generator = seed_everything(cfg, device)
-    model = build_model(facts, entity_count, relation_count, cfg, device)
+    model = build_model(
+        facts, entity_count, relation_count, cfg, device,
+        target_relations=target_relations,
+    )
+    if initial_state is not None:
+        model.load_state_dict(initial_state)
     optimizers = build_optimizers(model, cfg)
     n_facts = fact_count(facts)
     configure_gate_learning_rate(model, optimizers, args, cfg, steps, n_facts, tag)
 
-    args._nbe_c_cache = torch.full((n_facts,), -1.0, dtype=torch.float32, device=device)
-    args._nbe_c_cache_is_gate_local = False
+    gate_local = model.gate_scope == "train_targets"
+    args._nbe_c_cache = torch.full(
+        (int(model.weight_param.numel()) if gate_local else n_facts,),
+        -1.0, dtype=torch.float32, device=device,
+    )
+    args._nbe_c_cache_is_gate_local = gate_local
     args._nbe_k_per_fact = None
     args._nbe_chunked_dense_update = False
     args._nbe_dense_update_pending = None
-    train_idx = torch.arange(n_facts, dtype=torch.long, device=device)
+    train_idx = (model.gate_global_index if gate_local
+                 else torch.arange(n_facts, dtype=torch.long, device=device))
     sorted_true_keys = (membership_keys(facts, facts_tensor, entity_count, relation_count, args, tag)
                         if cfg.dataset == "family"
                         else torch.empty((0,), dtype=torch.long, device=device))
@@ -146,6 +184,10 @@ def train_once(facts: np.ndarray, orientation_inverse: np.ndarray, cfg: SimpleNa
     best_state = None
     best_rate = float("inf")
     best_step = -1
+    material_rate = float("inf")
+    stale_probes = 0
+    stopped_early = False
+    completed_steps = 0
     for step_idx in range(steps):
         model.train()
         for optimizer in optimizers:
@@ -153,9 +195,13 @@ def train_once(facts: np.ndarray, orientation_inverse: np.ndarray, cfg: SimpleNa
         args._nbe_dense_update_pending = None
         args._nbe_pressure_on = True
         args._nbe_anneal_frac = float(step_idx + 1) / max(steps, 1)
-        plan = tnb_batch_plan(args, min(512 if cfg.dataset == "family" else 2048, n_facts))
+        train_count = int(train_idx.numel())
+        plan = tnb_batch_plan(
+            args,
+            min(512 if cfg.dataset in {"family", "freebase", "wikidata5m"} else 2048, train_count),
+        )
         args._tnb_false_main_batch_count = plan.false_main_batch_count
-        pos_local = torch.randint(0, n_facts, (plan.true_target_batch_size,),
+        pos_local = torch.randint(0, train_count, (plan.true_target_batch_size,),
                                   generator=generator, device=device)
         pos = train_idx[pos_local.long()]
 
@@ -176,6 +222,7 @@ def train_once(facts: np.ndarray, orientation_inverse: np.ndarray, cfg: SimpleNa
             optimizer.step()
 
         step = step_idx + 1
+        completed_steps = step
         if step % 100 == 0 or step == steps:
             with torch.no_grad():
                 stats = estimate_gate_stats(model, generator, n_facts)
@@ -191,26 +238,41 @@ def train_once(facts: np.ndarray, orientation_inverse: np.ndarray, cfg: SimpleNa
                               witness_absmean=float(witness.abs().mean().item()))
             print(json.dumps(record, sort_keys=True), flush=True)
 
-        if collect_curve and cfg.dataset == "family" and (step % 400 == 0 or step == steps):
-            step_metrics = evaluate(model, facts, graph, entity_count, relation_count, args, cfg)
-            record = curve_record(tag, step, step_metrics[0])
+        if collect_curve and cfg.dataset in {"family", "yago3-10"} and step % (400 if cfg.dataset == "family" else 1000) == 0:
+            probe_metrics = decode_compression_probe(
+                model, facts, entity_count, relation_count, args,
+            )
+            record = curve_record(tag, step, probe_metrics)
             curve.append(record)
             append_curve_record(f"runs/{cfg.dataset}/curve.jsonl", record)
-            print(json.dumps({"tag": tag, "curve_decode": record}, sort_keys=True), flush=True)
-            if step_metrics[0].fact_rate < best_rate:
-                best_rate, best_step = step_metrics[0].fact_rate, step
+            print(json.dumps({"tag": tag, "compression_probe": record}, sort_keys=True), flush=True)
+            if probe_metrics.fact_rate < best_rate:
+                best_rate, best_step = probe_metrics.fact_rate, step
                 best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
                 print(json.dumps({"tag": tag, "best_checkpoint": {"step": step,
                                   "fact_rate": best_rate}}, sort_keys=True), flush=True)
+            material_rate, stale_probes, stopped_early = _advance_early_stop(
+                cfg.dataset, step, probe_metrics.fact_rate, material_rate, stale_probes,
+            )
+            stopped_early = stopped_early and step < steps
+            print(json.dumps({"tag": tag, "early_stop_state": {
+                "step": step, "stale_probes": stale_probes, "stop": stopped_early,
+            }}, sort_keys=True), flush=True)
 
-        if step % (400 if cfg.dataset == "family" else 1000) == 0 or step == steps:
+        if cfg.dataset in {"family", "yago3-10"} and (step % (400 if cfg.dataset == "family" else 1000) == 0 or step == steps):
             directory = Path(f"runs/{cfg.dataset}/snapshots")
             directory.mkdir(parents=True, exist_ok=True)
             path = directory / f"model_step{step}.pt"
             torch.save(model.state_dict(), path)
             print(json.dumps({"tag": tag, "snapshot": str(path), "step": step}), flush=True)
 
-    if best_state is not None and best_step != steps:
+        if stopped_early:
+            print(json.dumps({"tag": tag, "early_stop": {
+                "step": step, "best_step": best_step, "probe_fact_rate": best_rate,
+            }}, sort_keys=True), flush=True)
+            break
+
+    if best_state is not None and best_step != completed_steps:
         model.load_state_dict(best_state)
         print(json.dumps({"tag": tag, "best_checkpoint_restored": {
             "step": best_step, "fact_rate": best_rate}}, sort_keys=True), flush=True)
@@ -222,13 +284,26 @@ def train_once(facts: np.ndarray, orientation_inverse: np.ndarray, cfg: SimpleNa
     args._nbe_k_per_fact = None
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-    all_metrics = evaluate(model, facts, graph, entity_count, relation_count, args, cfg)
+    all_metrics = evaluate(
+        model, facts, graph, entity_count, relation_count, args, cfg,
+        bundle_dir=(f"runs/{cfg.dataset}/query" if write_query_bundle else None),
+    )
     metrics = all_metrics[0]
     args._last_decode_metrics = all_metrics
-    if collect_curve and not any(row["step"] == steps for row in curve):
-        record = curve_record(tag, steps, metrics)
+    if collect_curve and not any(
+        row["step"] == completed_steps and row["policy"] == metrics.policy
+        for row in curve
+    ):
+        record = curve_record(tag, completed_steps, metrics)
         append_curve_record(f"runs/{cfg.dataset}/curve.jsonl", record)
         print(json.dumps({"tag": tag, "curve_decode": record}, sort_keys=True), flush=True)
+    args._training_status = {
+        "requested_steps": int(steps),
+        "completed_steps": int(completed_steps),
+        "stopped_early": bool(stopped_early),
+        "best_probe_step": int(best_step),
+        "best_probe_fact_rate": float(best_rate),
+    }
     print(json.dumps({"tag": tag, "decode": asdict(metrics),
                       "decode_compare": [asdict(item) for item in all_metrics]}, sort_keys=True), flush=True)
     return model, args, metrics

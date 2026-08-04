@@ -1,4 +1,4 @@
-"""Streaming candidate generation for the single champion decode path."""
+
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ try:
         kernel_sparse_scores,
         sparse_candidate_rows,
     )
-except ImportError:  # direct script execution
+except ImportError:                           
     from drum import SupplyGatedDRUM
     from graph import Graph
     from proof import (
@@ -32,7 +32,7 @@ except ImportError:  # direct script execution
 
 @dataclass(frozen=True)
 class DirectionCandidateRow:
-    """One ordered query row; arrays are CPU NumPy arrays."""
+    pass                                                     
 
     relation: int
     query_head: int
@@ -64,11 +64,11 @@ def build_relation_row_index(
     *,
     chunk_size: int = 5_000_000,
 ) -> dict[int, np.ndarray]:
-    """One chunked pass over facts to collect row indices for selected relations.
+    pass                                                                         
 
-    Replaces per-relation full-table ``flatnonzero`` scans (56 × 305M on FB head70),
-    which silently wedged the first decode relation for 10+ minutes.
-    """
+                                                                                    
+                                                                    
+       
     rel_ids = [int(r) for r in relation_ids]
     wanted = set(rel_ids)
     if not wanted:
@@ -157,14 +157,14 @@ def materialize_supply_proof_graph(
     hard_supply: torch.Tensor,
     device: torch.device,
 ) -> tuple[Graph, torch.Tensor]:
-    """Build the physical proof graph represented by a hard supply decision.
+    pass                                                                    
 
-    FastLog applies its per-node edge cap before multiplying edge scores.  A
-    full graph with zero-weight dropped edges is therefore not equivalent to a
-    graph containing only stored supply: dead edges can consume the cap.  The
-    deployment graph must contain exactly the stored premises, with unit edge
-    weights, which is also the historical YAGO replay contract.
-    """
+                                                                            
+                                                                              
+                                                                             
+                                                                             
+                                                               
+       
     supply = hard_supply.detach().cpu().numpy().astype(np.bool_, copy=False)
     rows = np.asarray(facts[supply], dtype=np.int64)
     graph = Graph(torch.as_tensor(rows, dtype=torch.long, device=device))
@@ -183,7 +183,7 @@ def relation_grouped_arrays(
     orientation_inverse: np.ndarray | None,
     precomputed_idx: np.ndarray | None = None,
 ) -> tuple[int, int, dict[int, np.ndarray], dict[int, np.ndarray], set[int]]:
-    """Return deduplicated truth/supply tails grouped by oriented query head."""
+    pass                                                                        
     rel_idx, heads, tails = oriented_relation_arrays(
         facts,
         relation,
@@ -199,7 +199,7 @@ def group_relation_pairs(
     tails: np.ndarray,
     supply: np.ndarray,
 ) -> tuple[int, int, dict[int, np.ndarray], dict[int, np.ndarray], set[int]]:
-    """Group one already-sliced relation without scanning the full fact table."""
+    pass                                                                         
     heads = np.asarray(heads, dtype=np.int64).ravel()
     tails = np.asarray(tails, dtype=np.int64).ravel()
     supply = np.asarray(supply, dtype=np.bool_).ravel()
@@ -208,8 +208,8 @@ def group_relation_pairs(
     if heads.size == 0:
         return 0, 0, {}, {}, set()
 
-    # lexsort + consecutive unique is much faster than np.unique(pairs, axis=0)
-    # on multi-10M-row FB relations (the previous first-relation wedge).
+                                                                               
+                                                                        
     order = np.lexsort((tails, heads))
     h = heads[order]
     t = tails[order]
@@ -222,9 +222,9 @@ def group_relation_pairs(
     uniq_idx = np.flatnonzero(first)
     unique_heads = h[uniq_idx]
     unique_tails = t[uniq_idx]
-    # OR-reduce supply flags onto unique pairs (groups are contiguous after sort).
+                                                                                  
     supply_any = np.zeros(uniq_idx.size, dtype=np.bool_)
-    # segment ids 0..U-1 for each row
+                                     
     seg = np.cumsum(first) - 1
     np.logical_or.at(supply_any, seg, s)
 
@@ -232,7 +232,7 @@ def group_relation_pairs(
         result: dict[int, np.ndarray] = {}
         if pair_heads.size == 0:
             return result
-        # pair_heads already sorted
+                                   
         uniq_h, starts = np.unique(pair_heads, return_index=True)
         bounds = np.append(starts, pair_heads.shape[0])
         for index, head in enumerate(uniq_h):
@@ -284,6 +284,69 @@ def query_heads_for_relation(
     )
 
 
+def prepare_rule_first_hop_prune(
+    model: SupplyGatedDRUM,
+    relations: Sequence[int],
+    facts: np.ndarray,
+    hard_supply_np: np.ndarray,
+    args: SimpleNamespace,
+) -> None:
+    pass                                                                      
+    if str(getattr(args, "decode_query_prune", "none")) != "rule_first_hop":
+        return
+    threshold = float(getattr(args, "decode_query_rule_threshold", 0.0))
+    if threshold <= 0.0:
+        return
+    active_by_relation: dict[int, list[int]] = {}
+    with torch.no_grad():
+        for relation in relations:
+            logits = model.build_rule_logits(torch.tensor([relation], device=model.emb.device))
+            weights = torch.softmax(logits[:, 0, :, :] / model.tau_1, dim=-1)
+            active_by_relation[int(relation)] = torch.nonzero(
+                weights.amax(dim=1).reshape(-1) >= threshold, as_tuple=False
+            ).reshape(-1).cpu().tolist()
+    wanted = sorted({
+        channel % int(model.relation_count)
+        for channels in active_by_relation.values()
+        for channel in channels
+        if channel < 2 * int(model.relation_count)
+    })
+    endpoint_chunks = {relation: [[], []] for relation in wanted}
+    relation_col = np.asarray(facts[:, 1], dtype=np.int64)
+    for start in range(0, len(facts), 5_000_000):
+        end = min(start + 5_000_000, len(facts))
+        keep = hard_supply_np[start:end] & np.isin(relation_col[start:end], wanted)
+        rows = np.asarray(facts[start:end][keep], dtype=np.int64)
+        for relation in np.unique(rows[:, 1]).tolist() if rows.size else []:
+            relation_rows = rows[rows[:, 1] == relation]
+            endpoint_chunks[int(relation)][0].append(np.unique(relation_rows[:, 0]))
+            endpoint_chunks[int(relation)][1].append(np.unique(relation_rows[:, 2]))
+    cache: dict[int, np.ndarray] = {}
+    for relation, (heads, tails) in endpoint_chunks.items():
+        cache[relation] = np.unique(np.concatenate(heads)) if heads else np.empty(0, np.int64)
+        cache[relation + int(model.relation_count)] = (
+            np.unique(np.concatenate(tails)) if tails else np.empty(0, np.int64)
+        )
+    args._decode_query_channel_heads = cache
+    args._decode_query_active_channels = active_by_relation
+
+
+def rule_first_hop_query_heads(
+    relation: int,
+    query_heads: Sequence[int],
+    args: SimpleNamespace,
+) -> list[int]:
+    if str(getattr(args, "decode_query_prune", "none")) != "rule_first_hop":
+        return list(query_heads)
+    channels = getattr(args, "_decode_query_active_channels", {}).get(int(relation), [])
+    cache = getattr(args, "_decode_query_channel_heads", {})
+    supported = [cache[channel] for channel in channels if channel in cache]
+    if not supported:
+        return []
+    heads = np.asarray(query_heads, dtype=np.int64)
+    return heads[np.isin(heads, np.unique(np.concatenate(supported)))].tolist()
+
+
 def ordered_tail_scores(
     candidate_tails,
     candidate_scores,
@@ -304,7 +367,7 @@ def maybe_compact_graph_for_final_decode(
     graph: Graph,
     args: SimpleNamespace,
 ) -> None:
-    """Drop immutable raw topology once, only after training has ended."""
+    pass                                                                  
     if not bool(getattr(args, "_decode_graph_compaction_allowed", False)):
         return
     if bool(getattr(args, "_decode_graph_compaction_attempted", False)):
@@ -335,10 +398,13 @@ def iter_decode_candidate_batches(
     graph: Graph,
     args: SimpleNamespace,
 ):
-    """Yield CPU candidate rows without retaining a full outer proof batch."""
+    pass                                                                      
     total = int(heads.shape[0])
-    for row_start in range(0, total, max(total, 1)):
-        row_end = min(row_start + max(total, 1), total)
+    microbatch = int(getattr(args, "decode_proof_microbatch_size", 0))
+    if microbatch <= 0:
+        microbatch = max(total, 1)
+    for row_start in range(0, total, microbatch):
+        row_end = min(row_start + microbatch, total)
         raw = kernel_sparse_scores(
             model,
             heads[row_start:row_end],
@@ -365,9 +431,9 @@ def iter_direction_candidate_rows(
     graph: Graph,
     args: SimpleNamespace,
 ) -> Iterator[DirectionCandidateRow]:
-    """Stream ordered candidate rows for one relation."""
+    pass                                                 
     heads = list(query_heads)
-    batch_size = 4096 if args.dataset == "family" else 1024
+    batch_size = int(args.decode_batch_size)
     if batch_size <= 0:
         raise ValueError("decode_batch_size must be positive")
     device = model.weight_param.device

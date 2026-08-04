@@ -1,4 +1,4 @@
-"""Minimal FastLog bridge used by the standalone MiniKG runtime."""
+
 
 from __future__ import annotations
 

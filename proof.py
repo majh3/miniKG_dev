@@ -1,8 +1,8 @@
-"""Proof helpers and kernel_sp bridge for src_final.
 
-The DRUM math is copied from the active backend path, but the surface is reduced
-to what the final TNB runner actually calls.
-"""
+
+                                                                                
+                                            
+   
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ try:
         prune_sparse3d_active_entities,
     )
     from .paths import SRC_UNIFY_ALL
-except ImportError:  # direct script execution
+except ImportError:                           
     from drum import SupplyGatedDRUM, normalize_sparse3d, prune_sparse3d_active_entities
     try:
         from paths import SRC_UNIFY_ALL
@@ -62,15 +62,15 @@ def kernel_ops():
 
 
 def use_logit_edge_weight_path(model: SupplyGatedDRUM, args) -> bool:
-    """Select the sparse-safe representation of differentiable edge weights.
+    pass                                                                    
 
-    FastLog can consume either probabilities or logits.  A sparse gradient
-    cannot flow through PyTorch's generic ``sigmoid(...).reshape(-1)`` chain:
-    ``ViewBackward`` attempts to reshape the sparse COO tensor and raises.
-    Feeding logits lets FastLog apply the mathematically identical sigmoid and
-    its derivative inside the custom backward, returning the sparse gradient
-    directly to ``weight_param`` without an intervening view.
-    """
+                                                                          
+                                                                             
+                                                                          
+                                                                              
+                                                                            
+                                                             
+       
     sparse_edge_grad = os.environ.get("FASTLOG_SPARSE_EDGE_GRAD", "0") == "1"
     return (
         sparse_edge_grad
@@ -81,7 +81,7 @@ def use_logit_edge_weight_path(model: SupplyGatedDRUM, args) -> bool:
 
 
 def validate_sparse_score_path(edge_scores: torch.Tensor) -> None:
-    """Reject differentiable score paths that cannot accept a sparse COO grad."""
+    pass                                                                         
     if (
         os.environ.get("FASTLOG_SPARSE_EDGE_GRAD", "0") == "1"
         and torch.is_grad_enabled()
@@ -130,13 +130,13 @@ class TrainTargetLogitEdgeScores(torch.autograd.Function):
 
 
 class SparseTrainTargetLogitEdgeScores(torch.autograd.Function):
-    """Map sparse global edge gradients to sparse local gate gradients.
+    pass                                                               
 
-    Forward is value-identical to ``TrainTargetLogitEdgeScores``. Backward returns
-    embedding-style hybrid COO ``[M, 1]`` so it can accumulate with sampled
-    ``F.embedding(..., sparse=True)`` gradients without allocating the dense
-    M-element gate gradient (the FB OOM at ``gw * w_scale``).
-    """
+                                                                                  
+                                                                           
+                                                                            
+                                                             
+       
 
     @staticmethod
     def forward(ctx, local_logits: torch.Tensor, gate_global_index: torch.Tensor, fact_count: int, base_logit: float):
@@ -178,16 +178,16 @@ class SparseTrainTargetLogitEdgeScores(torch.autograd.Function):
 
 
 def cached_train_target_edge_scores(model: SupplyGatedDRUM) -> torch.Tensor:
-    """Build the dense full-edge logit view once per optimizer step.
+    pass                                                            
 
-    A FB training step evaluates the true, false, and source-credit proof paths
-    before a single backward call.  All three paths use the same gate logits,
-    but previously each path materialized its own ``fact_count``-sized tensor
-    (1.14 GiB per copy on the 304.7M-edge FB graph).  Parameter ``_version`` is
-    incremented by an optimizer update, so it is a safe cache generation key:
-    calls in one step share one autograd node and their gradients accumulate;
-    the first call after an update drops the old graph and rebuilds the view.
-    """
+                                                                               
+                                                                             
+                                                                             
+                                                                               
+                                                                             
+                                                                             
+                                                                             
+       
     param = model.weight_param
     key = (
         id(param),
@@ -201,7 +201,7 @@ def cached_train_target_edge_scores(model: SupplyGatedDRUM) -> torch.Tensor:
     if cached is not None and cached[0] == key:
         return cached[1]
 
-    # Release the prior step's autograd graph before allocating its successor.
+                                                                              
     model._train_target_edge_scores_cache = None
     bridge = (
         SparseTrainTargetLogitEdgeScores
@@ -219,12 +219,12 @@ def cached_train_target_edge_scores(model: SupplyGatedDRUM) -> torch.Tensor:
 
 
 def clear_cached_train_target_edge_scores(model: SupplyGatedDRUM) -> None:
-    """Drop the per-step dense edge view after an early backward pass.
+    pass                                                              
 
-    Sequential proof backpropagation frees each proof graph before constructing
-    the next one.  Reusing a cached tensor whose autograd graph was already
-    consumed would be invalid, so this explicit boundary forces a fresh view.
-    """
+                                                                               
+                                                                           
+                                                                             
+       
     model._train_target_edge_scores_cache = None
 
 
@@ -245,9 +245,9 @@ def hard_supply_context(model: SupplyGatedDRUM, hard_supply: torch.Tensor):
     n = int(hard_supply.numel())
     dev = model.weight_param.device
     dtype = model.weight_param.dtype
-    # Huge-graph decode path: free the trainable gate tensor from GPU before
-    # installing a full-N float override (FB head70: weight_param ≈857 MiB +
-    # override 1.14 GiB would otherwise peak well past 24G together with CSR).
+                                                                            
+                                                                            
+                                                                              
     parked_param = None
     parked_index = None
     huge = n >= 50_000_000 and dev.type == "cuda"
@@ -265,7 +265,7 @@ def hard_supply_context(model: SupplyGatedDRUM, hard_supply: torch.Tensor):
                 ),
                 flush=True,
             )
-            # Park trainable state on CPU first to free GPU headroom.
+                                                                     
             parked_param = model.weight_param
             model.weight_param = nn.Parameter(parked_param.detach().to("cpu"), requires_grad=False)
             if getattr(model, "gate_global_index", None) is not None:
@@ -273,7 +273,7 @@ def hard_supply_context(model: SupplyGatedDRUM, hard_supply: torch.Tensor):
                 model.gate_global_index = parked_index.detach().to("cpu")
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            # Build float override on CPU in chunks, then one H2D.
+                                                                  
             flat_bool = hard_supply.detach().view(-1).to("cpu")
             hard_cpu = torch.empty((n,), dtype=dtype, device="cpu")
             for start in range(0, n, 2_000_000):
@@ -363,7 +363,7 @@ def proof_graph_masked_edge_context(
     edge_indices: torch.Tensor,
     args,
 ):
-    """Mask full-fact targets in either a full or materialized proof graph."""
+    pass                                                                      
     graph_global_indices = getattr(
         args,
         "_tnb_proof_graph_global_edge_indices",
@@ -434,7 +434,7 @@ def concat_score_batches(parts: list[torch.Tensor]) -> torch.Tensor:
 
 
 def compact_kernel_graph_for_decode(model: SupplyGatedDRUM, graph) -> int:
-    """Release raw topology after the immutable decode CSR has been cached."""
+    pass                                                                      
     if getattr(model, "_kernel_csr", None) is None:
         raise RuntimeError("decode graph compaction requires a cached kernel CSR")
     if getattr(model, "edge_weight_mask", None) is not None:
@@ -547,8 +547,8 @@ def kernel_sparse_scores(model: SupplyGatedDRUM, heads: torch.Tensor, rels: torc
             edge_weight_scale = 1.0
         mask_values = graph.mask_float if getattr(graph, "mask_float", None) is not None else None
         if mask_values is None:
-            # All-ones mask (or huge-graph path that skipped mask_float). Broadcast a
-            # scalar so FastLog still multiplies edge scores without a full-N float.
+                                                                                     
+                                                                                    
             mask_values = torch.ones((), dtype=torch.float32, device=heads.device)
         (
             ori_row_ptr,
@@ -569,7 +569,7 @@ def kernel_sparse_scores(model: SupplyGatedDRUM, heads: torch.Tensor, rels: torc
             inv_group_edge_count,
         ) = model._kernel_csr
         for hop in range(model.step):
-            state = prune_sparse3d_active_entities(state, 0 if args.dataset == "family" else 100_000)
+            state = prune_sparse3d_active_entities(state, int(args.kernel_topk_nodes))
             w_t = torch.softmax(rule_logits[:, hop, :, :] / model.tau_1, dim=-1)
             out_ori, out_inv, out_ind = FastLogFunctionSparse3DTopK.apply(
                 state.indices()[0],
@@ -600,7 +600,7 @@ def kernel_sparse_scores(model: SupplyGatedDRUM, heads: torch.Tensor, rels: torc
                 entity_count,
                 model.relation_count,
                 False,
-                (1 << 60) if args.dataset == "family" else 100,
+                int(args.kernel_topk_edges),
                 0,
                 edge_weight_is_score,
                 edge_weight_scale,
@@ -642,8 +642,8 @@ def bound_sparse_or_dense_scores(model: SupplyGatedDRUM, raw: torch.Tensor) -> t
 
 
 def bound_sparse_scores(raw: torch.Tensor) -> torch.Tensor:
-    """Compatibility alias for callers that always expect sparse drum-style scores."""
-    # model_base defaults to drum in champion path; dense/mmdrum handled upstream.
+    pass                                                                              
+                                                                                  
     if not raw.is_sparse:
         return 1.0 - torch.exp(-raw.clamp_min(0.0))
     raw = raw.coalesce()
@@ -686,9 +686,9 @@ def rank_margin_for_targets(
     args,
     k_per_target: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Per target: (s_true differentiable, s_kth detached) for the soft top-k
-    recovery surrogate — the acceptance decode selects top-k per (h,r) query,
-    so recovery means beating the k-th competitor, not clearing a score bar."""
+    pass                                                                     
+                                                                             
+                                                                               
     raw = kernel_sparse_scores(model, targets[:, 0], targets[:, 1], graph, args, is_training=False)
     scores = bound_sparse_or_dense_scores(model, raw)
     n = int(targets.shape[0])
@@ -729,14 +729,14 @@ def rank_margin_for_targets(
 
 
 def sparse_candidate_rows(scores: torch.Tensor) -> dict[int, tuple[np.ndarray, np.ndarray]]:
-    """Copy coalesced sparse scores to CPU and group them by query row.
+    pass                                                               
 
-    ``Tensor.coalesce()`` already returns lexicographically ordered COO indices,
-    so sorting the row index again on the GPU is redundant.  Besides the sort
-    itself, the old path allocated three gathered CUDA tensors (row, tail, and
-    value).  Keep a defensive CPU fallback for an unexpectedly unordered COO
-    implementation while making the normal path allocation-free on the GPU.
-    """
+                                                                                
+                                                                             
+                                                                              
+                                                                            
+                                                                           
+       
     scores = scores.coalesce()
     idx = scores.indices()
     val = scores.values()

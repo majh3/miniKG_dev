@@ -1,9 +1,9 @@
-"""Balance-preserving global normalization for supply-gate gradients.
 
-The complete gate gradient is multiplied by one scalar after backward.  This
-keeps every sign and every pressure/credit ratio unchanged while removing the
-graph-, batch-, and witness-dependent magnitude from the SGD update.
-"""
+
+                                                                            
+                                                                             
+                                                                    
+   
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ _STEP_BUFFER = "gate_grad_norm_steps"
 
 
 def register_state(model: torch.nn.Module) -> None:
-    """Register persistent normalization state."""
+    pass                                          
     if not hasattr(model, _EMA_BUFFER):
         model.register_buffer(_EMA_BUFFER, torch.zeros((), dtype=torch.float64), persistent=True)
     if not hasattr(model, _STEP_BUFFER):
@@ -73,11 +73,11 @@ def apply_balanced_global_travel(
     model: torch.nn.Module,
     optimizers: list[torch.optim.Optimizer],
 ) -> dict[str, int | float | str]:
-    """Scale the accumulated gate gradient by one common scalar.
+    pass                                                        
 
-    The target is expressed in actual logit displacement, so an upstream
-    auto-lr or a different base SGD lr cannot silently change the travel dose.
-    """
+                                                                        
+                                                                              
+       
     register_state(model)
     gradient = model.weight_param.grad
     if gradient is None:

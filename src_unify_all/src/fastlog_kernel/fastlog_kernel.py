@@ -11,7 +11,7 @@ def load_fastlog_kernel():
     source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "source")
     sources = [os.path.join(source_dir, "fastlog.cpp")]
 
-    # Add CUDA source if available
+                                  
     cuda_available = torch.cuda.is_available()
     if cuda_available:
         sources.append(os.path.join(source_dir, "fastlog.cu"))
@@ -335,8 +335,8 @@ def _backward_sparse3d_maxgroup_reduced(
 
 
 def _compute_active_nodes(A):
-    """Compute sorted unique active node indices from A [batch, L, E]."""
-    # A.sum(1) -> [batch, E], nonzero -> active (batch, entity) pairs
+    pass                                                                 
+                                                                     
     non_zero = torch.nonzero(A.sum(1))
     if non_zero.numel() == 0:
         return torch.empty(0, dtype=torch.long, device=A.device)
@@ -344,7 +344,7 @@ def _compute_active_nodes(A):
 
 
 def _ind2ptr_cpu(index, size):
-    """CPU version of ind2ptr — avoids GPU memory for large graphs."""
+    pass                                                              
     num = torch.zeros(size, dtype=torch.long)
     num.scatter_add_(0, index, torch.ones(index.size(0), dtype=torch.long))
     ptr = num.cumsum(0) - num
@@ -369,21 +369,20 @@ def _build_group_metadata(sorted_rows, sorted_rels, num_nodes):
 
 
 def build_csr_structure(row_indices, col_indices, r_indices, num_nodes):
-    """
-    Build CSR structure (row_ptr, col_ind, r_ind, sort orders).
-    This only depends on graph topology and can be cached permanently.
-    All heavy operations done on CPU to avoid large GPU memory allocations.
-    """
+    pass                                                               
+                                                                      
+                                                                           
+       
     device = row_indices.device
 
-    # Move to CPU for sorting
+                             
     row_cpu = row_indices.long().cpu()
     col_cpu = col_indices.long().cpu()
     r_cpu   = r_indices.long().cpu()
 
     rel_base = int(r_cpu.max().item()) + 1 if r_cpu.numel() > 0 else 1
 
-    # ORI: sort by (row_indices, relation)
+                                          
     order_ori       = (row_cpu * rel_base + r_cpu).argsort()
     ori_sorted_rows = row_cpu[order_ori]
     ori_col_ind_cpu = col_cpu[order_ori].to(torch.int32)
@@ -392,10 +391,10 @@ def build_csr_structure(row_indices, col_indices, r_indices, num_nodes):
     ori_row_group_ptr_cpu, ori_group_rel_cpu, ori_group_edge_start_cpu, ori_group_edge_count_cpu = \
         _build_group_metadata(ori_sorted_rows, ori_r_ind_cpu.to(torch.long), num_nodes)
 
-    # INV: sort by (col_indices, relation)
+                                          
     order_inv       = (col_cpu * rel_base + r_cpu).argsort()
     inv_sorted_cols = col_cpu[order_inv]
-    inv_col_ind_cpu = row_cpu[order_inv].to(torch.int32)  # swapped
+    inv_col_ind_cpu = row_cpu[order_inv].to(torch.int32)           
     inv_r_ind_cpu   = r_cpu[order_inv].to(torch.int16)
     inv_row_ptr_cpu = _ind2ptr_cpu(inv_sorted_cols, num_nodes)
     inv_row_group_ptr_cpu, inv_group_rel_cpu, inv_group_edge_start_cpu, inv_group_edge_count_cpu = \
@@ -496,10 +495,9 @@ def build_smgroup_metadata(row_indices, col_indices, r_indices, num_nodes):
 
 
 def apply_mask(csr_struct, mask_values, weight=None):
-    """
-    Apply mask (and optional edge weight) to cached CSR structure.
-    Called each forward pass so mask always reflects current state.
-    """
+    pass                                                                  
+                                                                   
+       
     (ori_row_ptr, ori_col_ind, ori_r_ind, order_ori,
      inv_row_ptr, inv_col_ind, inv_r_ind, order_inv, *_) = csr_struct
 
@@ -518,9 +516,8 @@ def apply_mask(csr_struct, mask_values, weight=None):
 
 
 def build_csr(row_indices, col_indices, r_indices, mask_values, num_nodes, weight=None):
-    """
-    Build full CSR with mask. Convenience wrapper for one-shot use.
-    """
+    pass                                                                   
+       
     struct = build_csr_structure(row_indices, col_indices, r_indices, num_nodes)
     return apply_mask(struct, mask_values, weight=weight)
 
@@ -636,13 +633,12 @@ class FastLogFunction(autograd.Function):
 
 def vectorized_operation(A, B, target_size, r_size, is_max=False, topk_pruning=100000,
                          weight=None, use_topk=False, wot_i=False):
-    """
-    Drop-in replacement for utils.vectorized_operation.
-    Builds CSR on the fly (no caching). For cached version use vectorized_operation_csr.
-    """
+    pass                                                       
+                                                                                        
+       
     row_indices, col_indices, r_indices, mask_values, w = B
 
-    # Build full CSR structure (includes group metadata)
+                                                        
     csr_struct = build_csr_structure(row_indices, col_indices, r_indices, target_size)
 
     return vectorized_operation_csr(
@@ -655,19 +651,18 @@ def vectorized_operation(A, B, target_size, r_size, is_max=False, topk_pruning=1
 def vectorized_operation_csr(A, w, csr_struct, mask_values, r_size,
                               weight=None, wot_i=False,
                               use_topk=False, topk_nodes=100000, topk_edges=0):
-    """
-    CPU-capable entry point with topk support, mirroring v2 interface.
-    Uses group-based iteration aligned with CUDA kernel.
+    pass                                                                      
+                                                        
 
-    csr_struct: output of build_csr_structure() (16-tuple)
-    mask_values: raw mask tensor (weight applied here in Python)
-    """
+                                                          
+                                                                
+       
     (ori_row_ptr, ori_col_ind, ori_r_ind, order_ori,
      inv_row_ptr, inv_col_ind, inv_r_ind, order_inv,
      ori_row_group_ptr, ori_group_rel, ori_group_edge_start, ori_group_edge_count,
      inv_row_group_ptr, inv_group_rel, inv_group_edge_start, inv_group_edge_count) = csr_struct
 
-    # Apply mask + weight in Python (CPU equivalent of apply_mask_cuda)
+                                                                       
     mask_f = mask_values.float()
     if weight is not None:
         ew = score_function(weight).squeeze(-1)
@@ -675,7 +670,7 @@ def vectorized_operation_csr(A, w, csr_struct, mask_values, r_size,
     ori_mask = mask_f[order_ori]
     inv_mask = mask_f[order_inv]
 
-    # Level 1: Active node pruning
+                                  
     active_nodes = _compute_active_nodes(A)
     if use_topk and active_nodes.size(0) > topk_nodes:
         B, L, E = A.shape
@@ -684,7 +679,7 @@ def vectorized_operation_csr(A, w, csr_struct, mask_values, r_size,
         _, topk_idx = torch.topk(scores, k=topk_nodes)
         active_nodes = active_nodes[topk_idx].sort()[0]
 
-    # Level 2: effective topk_edges (0 means no pruning → pass huge value)
+                                                                          
     effective_topk = topk_edges if (use_topk and topk_edges > 0) else (1 << 60)
 
     return FastLogFunction.apply(
@@ -698,11 +693,10 @@ def vectorized_operation_csr(A, w, csr_struct, mask_values, r_size,
 
 
 class FastLogFunctionV2(autograd.Function):
-    """
-    Phase 2: active_nodes + mask computed on GPU in C++.
-    Eliminates Python-side nonzero/unique sync and temporary tensors.
-    Supports optional top-k pruning (Level 1: nodes, Level 2: edges per node).
-    """
+    pass                                                        
+                                                                     
+                                                                              
+       
     @staticmethod
     def forward(ctx, A, w, ori_row_ptr, ori_col_ind, ori_r_ind, ori_order,
                 inv_row_ptr, inv_col_ind, inv_r_ind, inv_order,
@@ -725,12 +719,12 @@ class FastLogFunctionV2(autograd.Function):
         A_flat = A.reshape(BL, E).contiguous().float()
         w_flat = w.reshape(BL, -1).contiguous().float()
 
-        # Active nodes on GPU (no CPU sync)
+                                           
         active_nodes = module.compute_active_nodes_cuda(A_flat)
 
-        # Level 1: Limit active nodes count
+                                           
         if use_topk and active_nodes.size(0) > topk_nodes:
-            scores = A_flat[:, active_nodes].sum(dim=0)  # [num_active]
+            scores = A_flat[:, active_nodes].sum(dim=0)                
             _, topk_idx = torch.topk(scores, k=topk_nodes)
             active_nodes = active_nodes[topk_idx].sort()[0]
 
@@ -739,7 +733,7 @@ class FastLogFunctionV2(autograd.Function):
         ori_mask = module.apply_mask_cuda(mask_f, ori_order, w_tensor)
         inv_mask = module.apply_mask_cuda(mask_f, inv_order, w_tensor)
 
-        # Phase 1 fused forward kernel
+                                      
         out_ind, out_ori, out_inv = module.fastlog_forward_cuda(
             A_flat, w_flat, active_nodes,
             ori_row_ptr, ori_col_ind, ori_r_ind, ori_mask,
@@ -1452,17 +1446,16 @@ def vectorized_operation_csr_v2(A, w, csr_struct, mask_values, r_size,
                                  weight=None, wot_i=False,
                                  use_topk=False, topk_nodes=100000, topk_edges=0,
                                  agg_mode="sum"):
-    """
-    Phase 2: Fully optimized CUDA entry point.
-    - active_nodes computed on GPU (no CPU sync)
-    - mask applied on GPU (no Python temporaries)
-    - Optional top-k pruning (use_topk=True):
-        Level 1: limit active nodes to topk_nodes
-        Level 2: limit edges per node to topk_edges
+    pass                                              
+                                                
+                                                 
+                                             
+                                                 
+                                                   
 
-    csr_struct: output of build_csr_structure() (includes sort orders)
-    mask_values: raw mask tensor (reapplied each call with current weight)
-    """
+                                                                      
+                                                                          
+       
     (ori_row_ptr, ori_col_ind, ori_r_ind, order_ori,
      inv_row_ptr, inv_col_ind, inv_r_ind, order_inv,
      ori_row_group_ptr, ori_group_rel, ori_group_edge_start, ori_group_edge_count,
@@ -1532,7 +1525,7 @@ def _expand_sparse3d_direction_cpu(
     row_group_ptr, group_rel, group_edge_start, group_edge_count,
     col_ind, mask, rel_offset, topk_edges
 ):
-    """Expand sparse entries along one direction (ORI or INV) on CPU with topk."""
+    pass                                                                          
     nnz = sp_batch.shape[0]
     device = sp_batch.device
     dtype = sp_value.dtype
@@ -1546,7 +1539,7 @@ def _expand_sparse3d_direction_cpu(
     if nnz == 0:
         return empty()
 
-    # Group ranges per entry
+                            
     g_starts = row_group_ptr[sp_entity].long()
     g_ends = row_group_ptr[sp_entity + 1].long()
     num_groups = g_ends - g_starts
@@ -1555,7 +1548,7 @@ def _expand_sparse3d_direction_cpu(
     if total_groups == 0:
         return empty()
 
-    # Expand entry→group
+                        
     entry_of_group = torch.repeat_interleave(torch.arange(nnz, device=device), num_groups)
     g_cumsum = torch.zeros(nnz + 1, dtype=torch.long, device=device)
     g_cumsum[1:] = num_groups.cumsum(0)
@@ -1570,7 +1563,7 @@ def _expand_sparse3d_direction_cpu(
     l_g = sp_level[entry_of_group]
     w_vals = w[b_g, l_g, rel_offset + rels]
 
-    # Topk filtering
+                    
     takes = edge_c.clone()
     if topk_edges < (1 << 60):
         buckets = (w_vals.detach() * 255).clamp(0, 255).int()
@@ -1607,7 +1600,7 @@ def _expand_sparse3d_direction_cpu(
                     takes[j] = t
                     threshold_seen += t
 
-    # Expand group→edge (only groups with take > 0)
+                                                   
     valid = takes > 0
     if not valid.any():
         return empty()
@@ -1625,7 +1618,7 @@ def _expand_sparse3d_direction_cpu(
     dst = col_ind[edge_pos].long()
     m = mask[edge_pos].float()
 
-    # Filter zero masks
+                       
     nz = m != 0
     if not nz.all():
         vg_of_edge = vg_of_edge[nz]
@@ -1642,7 +1635,7 @@ def _expand_sparse3d_direction_cpu(
 
 
 class FastLogFunctionSparse3DCPU(autograd.Function):
-    """CPU sparse 3D forward/backward with topk, semantically identical to GPU path."""
+    pass                                                                               
     @staticmethod
     def forward(ctx, sp_batch, sp_level, sp_entity, sp_value, w,
                 ori_col_ind, ori_mask,
@@ -1665,7 +1658,7 @@ class FastLogFunctionSparse3DCPU(autograd.Function):
                 inv_row_group_ptr, inv_group_rel, inv_group_edge_start, inv_group_edge_count,
                 inv_col_ind, inv_mask, r_size, topk_edges)
 
-        # Identity
+                  
         if not wot_i:
             ind_b, ind_l, ind_e = sp_batch, sp_level, sp_entity
             ind_v = sp_value * w[sp_batch, sp_level, n - 1]
@@ -1673,7 +1666,7 @@ class FastLogFunctionSparse3DCPU(autograd.Function):
             ind_b = ind_l = ind_e = torch.empty(0, dtype=torch.long, device=device)
             ind_v = torch.empty(0, dtype=sp_value.dtype, device=device)
 
-        # Coalesce each direction (reuse existing utility)
+                                                          
         ori_sp, _, _ = _coalesce_sparse3d_reduce(ori_b, ori_l, ori_e, ori_v, B, L, E)
         inv_sp, _, _ = _coalesce_sparse3d_reduce(inv_b, inv_l, inv_e, inv_v, B, L, E)
         ind_sp, _, _ = _coalesce_sparse3d_reduce(ind_b, ind_l, ind_e, ind_v, B, L, E)
@@ -1697,7 +1690,7 @@ class FastLogFunctionSparse3DCPU(autograd.Function):
         grad_sp = torch.zeros(nnz, dtype=sp_value.dtype, device=sp_value.device)
         grad_w = torch.zeros_like(w)
 
-        # ORI backward
+                      
         if ori_b.numel() > 0:
             g = _gather_sparse3d_grad_at_entities(grad_ori, ori_b, ori_l, ori_e, L, E)
             wc = w[ori_b, ori_l, ori_rel]
@@ -1705,7 +1698,7 @@ class FastLogFunctionSparse3DCPU(autograd.Function):
             widx = (ori_b * L + ori_l) * n + ori_rel
             grad_w.view(-1).index_add_(0, widx, g * sp_value[ori_entry] * ori_m)
 
-        # INV backward
+                      
         if inv_b.numel() > 0:
             g = _gather_sparse3d_grad_at_entities(grad_inv, inv_b, inv_l, inv_e, L, E)
             rel_shifted = inv_rel + r_size
@@ -1714,7 +1707,7 @@ class FastLogFunctionSparse3DCPU(autograd.Function):
             widx = (inv_b * L + inv_l) * n + rel_shifted
             grad_w.view(-1).index_add_(0, widx, g * sp_value[inv_entry] * inv_m)
 
-        # Identity backward
+                           
         if not ctx.wot_i:
             g = _gather_sparse3d_grad_at_entities(grad_ind, sp_batch, sp_level, sp_entity, L, E)
             grad_sp += g * w[sp_batch, sp_level, n - 1]
@@ -1731,7 +1724,7 @@ def vectorized_operation_sparse3d_csr(sp_state, w, csr_struct, mask_values,
                                        r_size, weight=None, wot_i=False,
                                        use_topk=False, topk_edges=0,
                                        agg_mode="sum"):
-    """Unified CPU/GPU dispatch for sparse 3D forward with topk."""
+    pass                                                           
     sp_state = sp_state.coalesce()
     idx = sp_state.indices()
     val = sp_state.values()
@@ -1753,7 +1746,7 @@ def vectorized_operation_sparse3d_csr(sp_state, w, csr_struct, mask_values,
     effective_topk = topk_edges if (use_topk and topk_edges > 0) else (1 << 60)
 
     if sp_state.is_cuda:
-        # GPU path: FastLogFunctionSparse3DTopK applies mask internally via apply_mask_cuda
+                                                                                           
         ori_row_ptr = csr_struct[0]
         ori_r_ind = csr_struct[2]
         inv_row_ptr = csr_struct[4]
@@ -1767,7 +1760,7 @@ def vectorized_operation_sparse3d_csr(sp_state, w, csr_struct, mask_values,
             mask_values, weight, B, L, E, r_size, wot_i, effective_topk,
             1 if agg_mode == "max" else 0)
     else:
-        # CPU path: apply mask in Python
+                                        
         mask_f = mask_values.float()
         if weight is not None:
             mask_f = mask_f * score_function(weight).squeeze(-1)

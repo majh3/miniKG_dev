@@ -1,5 +1,7 @@
 {
   "kappa": 32,
   "K": 2,
-  "L": 16
+  "L": 16,
+  "profile_threshold": 0.8,
+  "decode_prune_threshold": 0.2
 }

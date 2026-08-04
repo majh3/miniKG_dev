@@ -1,9 +1,9 @@
-"""Local DRUM model used by src_final.
 
-This is a focused copy of the active DRUM path from src_unify.fullgraph_unify.
-The core equations are intentionally unchanged; src_final only owns the smaller
-training/decode surface around it.
-"""
+
+                                                                              
+                                                                               
+                                  
+   
 
 from __future__ import annotations
 
@@ -60,17 +60,17 @@ def prune_sparse3d_active_entities(state: torch.Tensor, topk_nodes: int) -> torc
     if val.numel() <= topk_nodes:
         return state
     entity_count = state.shape[2]
-    # Family/WN18 etc. may set kernel_topk_nodes larger than |E|; clamp k.
+                                                                          
     k = min(int(topk_nodes), int(entity_count))
     if k <= 0:
         return state
     entity_score = torch.zeros(entity_count, dtype=val.dtype, device=val.device)
     entity_score.index_add_(0, idx[2], val.detach().abs())
-    # Do not count active entities with a graph-sized boolean temporary here.
-    # ``topk`` already preserves every nonzero entity when their count is at
-    # most ``topk_nodes``; the existing ``keep.all`` fast path below then
-    # returns the original state.  On FB this avoids a transient mask spanning
-    # all ~305M entities (hundreds of MiB) at the peak of each proof graph.
+                                                                             
+                                                                            
+                                                                         
+                                                                              
+                                                                           
     _, top_idx = torch.topk(entity_score, k=k)
     keep_entity = torch.zeros(entity_count, dtype=torch.bool, device=val.device)
     keep_entity[top_idx] = True
@@ -290,14 +290,14 @@ class SupplyGatedDRUM(nn.Module):
         self.weight_override = None
         self.legacy_bool_edge_mask = False
         self.legacy_hard_supply_logits = False
-        # Gate scope: "all" trains a logit per fact; "train_targets" trains logits only
-        # for target-relation facts (non-target gates frozen at gate_base_logit). Set up
-        # by final_model.build_model; keeps huge-graph gate params/optimizer states small.
+                                                                                       
+                                                                                        
+                                                                                          
         self.gate_scope = "all"
-        self.gate_global_index = None  # sorted global fact indices of trainable gates
+        self.gate_global_index = None                                                 
         self.gate_base_logit = 0.0
-        # Training enables this only when the gate optimizer accepts sparse COO
-        # gradients (chunked sparse NBE on huge graphs). Forward values unchanged.
+                                                                               
+                                                                                  
         self.sparse_gate_parameter_grad = False
 
         self.emb = nn.Parameter(torch.Tensor(relation_channels, emb_size))
@@ -391,8 +391,8 @@ class SupplyGatedDRUM(nn.Module):
                     weight = hard_weight.detach() + weight - weight.detach()
             return weight
         if self.weight_override is None and self.gate_scope == "train_targets" and self.weight_transform is None:
-            # Compute sigmoid only for the [M] trainable gates, then embed into a detached
-            # base buffer (no grad flows through non-target positions → no [N] backward alloc).
+                                                                                          
+                                                                                               
             base_val = float(torch.sigmoid(torch.tensor(self.gate_base_logit / self.supply_temperature)))
             weight = torch.full(
                 (self.fact_count, 1), base_val,
@@ -444,9 +444,9 @@ class SupplyGatedDRUM(nn.Module):
             if bool(mapped.all().item()):
                 logits = self.target_rule_logits[row]
             else:
-                # Non-target relations reach here only via negative-scoring paths;
-                # they fall back to the shared parametrization while target
-                # relations keep independent table rows.
+                                                                                  
+                                                                           
+                                                        
                 logits = self._shared_rule_logits(target_rel).clone()
                 if bool(mapped.any().item()):
                     logits[mapped] = self.target_rule_logits[row[mapped]]

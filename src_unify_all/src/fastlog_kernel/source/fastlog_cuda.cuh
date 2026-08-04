@@ -126,7 +126,7 @@ fastlog_backward_maxgroup_cuda(
     int64_t r_size, bool wot_i, bool use_topk, int64_t topk_edges
 );
 
-// Dense CUDA forward pass
+                          
 std::tuple<Tensor, Tensor, Tensor> fastlog_forward_cuda(
     const Tensor &A,
     const Tensor &w,
@@ -180,7 +180,7 @@ std::tuple<Tensor, Tensor, Tensor, Tensor, Tensor> fastlog_forward_max_cuda(
     int64_t topk_edges
 );
 
-// CUDA backward pass
+                     
 std::tuple<Tensor, Tensor> fastlog_backward_cuda(
     const Tensor &grad_ind,
     const Tensor &grad_ori,
@@ -245,8 +245,8 @@ std::tuple<Tensor, Tensor> fastlog_backward_max_cuda(
 );
 
 
-// Phase 2: GPU-side helpers
+                            
 Tensor compute_active_nodes_cuda(const Tensor &A_flat);
 Tensor apply_mask_cuda(const Tensor &mask_values, const Tensor &order, const Tensor &weight);
 
-} // namespace fastlog
+}                     

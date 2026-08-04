@@ -1,4 +1,4 @@
-"""Dataset loading and orientation helpers."""
+
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import numpy as np
 
 try:
     from .facts import infer_entity_relation_count
-except ImportError:  # direct script execution
+except ImportError:                           
     from facts import infer_entity_relation_count
 
 
@@ -33,8 +33,13 @@ def load_facts(path: str, data_format: str = "auto", assume_unique: bool = False
 
 
 def load_dataset(cfg: SimpleNamespace) -> tuple[np.ndarray, int, int]:
+    npy_path = Path(f"data/{cfg.dataset}/all_id.npy")
+    if cfg.dataset == "freebase" and not npy_path.exists():
+        npy_path = Path("data/freebase/train.npy")
+    text_path = Path(f"data/{cfg.dataset}/all_id.txt")
+    path = npy_path if npy_path.exists() else text_path
     facts = np.asarray(
-        load_facts(f"data/{cfg.dataset}/all_id.txt", data_format="txt", assume_unique=False),
+        load_facts(str(path), data_format="auto", assume_unique=False),
         dtype=np.int64,
     )
     entity_count, relation_count = infer_entity_relation_count(facts)
@@ -79,18 +84,18 @@ def orientation_list(inverse: np.ndarray) -> list[int]:
     return [idx for idx, flag in enumerate(inverse) if bool(flag)]
 
 
-# Vectorized truth lookup avoids a pure-Python loop (~16 min on Freebase).
-# TruthLookup answers the same membership queries from a lexsorted (h*R+r, t) array
-# pair built with numpy in seconds. The only consumer (negative.sample_corrupt_targets)
-# uses .get((h, r), set()) followed by `in` tests, so identical membership answers
-# keep the RNG accept/reject sequence — and therefore training — bit-identical.
+                                                                          
+                                                                                   
+                                                                                       
+                                                                                  
+                                                                               
 
 
 class _TailView:
     __slots__ = ("_tails",)
 
     def __init__(self, tails: np.ndarray):
-        self._tails = tails  # sorted 1-D int64 slice (numpy view, no copy)
+        self._tails = tails                                                
 
     def __contains__(self, value) -> bool:
         v = int(value)

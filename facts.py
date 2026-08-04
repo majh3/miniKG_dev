@@ -1,4 +1,4 @@
-"""Fact tensor utilities and membership keys."""
+
 
 from __future__ import annotations
 

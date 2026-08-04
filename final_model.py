@@ -1,4 +1,4 @@
-"""Model construction for the final path."""
+
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ try:
     from .drum import SupplyGatedDRUM
     from .facts import fact_count
     from .gate_grad_normalization import register_state as register_gate_grad_normalization_state
-except ImportError:  # direct script execution
+except ImportError:                           
     from drum import SupplyGatedDRUM
     from facts import fact_count
     from gate_grad_normalization import register_state as register_gate_grad_normalization_state
@@ -24,6 +24,7 @@ def build_model(
     relation_count: int,
     cfg: SimpleNamespace,
     device: torch.device,
+    target_relations: list[int] | None = None,
 ) -> SupplyGatedDRUM:
     model = SupplyGatedDRUM(
         relation_channels=2 * relation_count + 1,
@@ -48,11 +49,22 @@ def build_model(
         target_table_relations=None,
     ).to(device)
     init_logit = math.log(0.8 / (1.0 - 0.8)) * 0.2
-    model.gate_scope = "all"
+    model.gate_scope = "train_targets" if target_relations is not None else "all"
     model.gate_base_logit = float(init_logit)
-    model.weight_param = nn.Parameter(
-        torch.full((fact_count(facts), 1), init_logit, dtype=torch.float32, device=device)
-    )
+    if target_relations is None:
+        model.weight_param = nn.Parameter(
+            torch.full((fact_count(facts), 1), init_logit, dtype=torch.float32, device=device)
+        )
+    else:
+        global_idx = np.flatnonzero(
+            np.isin(np.asarray(facts)[:, 1], np.asarray(target_relations, dtype=np.int64))
+        )
+        if not global_idx.size:
+            raise ValueError("profiling selected no trainable facts")
+        model.gate_global_index = torch.as_tensor(global_idx, dtype=torch.long, device=device)
+        model.weight_param = nn.Parameter(
+            torch.full((int(global_idx.size), 1), init_logit, dtype=torch.float32, device=device)
+        )
     register_gate_grad_normalization_state(model)
     return model
 
@@ -66,7 +78,7 @@ def build_optimizers(model: SupplyGatedDRUM, cfg: SimpleNamespace) -> list[torch
     optimizers: list[torch.optim.Optimizer] = []
     if rule_params:
         optimizers.append(torch.optim.Adam(rule_params, lr=0.01 if cfg.dataset == "family" else 0.015))
-    # Champion path: Adam learns rules; magnitude-preserving SGD learns fact gates.
+                                                                                   
     optimizers.append(torch.optim.SGD(
         [model.weight_param], lr=(0.01 if cfg.dataset == "family" else 0.015) * 20.0
     ))

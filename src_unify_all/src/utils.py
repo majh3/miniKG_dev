@@ -13,8 +13,8 @@ class Option(object):
     def __init__(self, d, exp_sig):
         self.__dict__ = d
         self.exp_dir = os.path.join(self.exps_dir, self.exp_name, exp_sig)
-        # if not os.path.exists(self.exps_dir):
-        #     os.mkdir(self.exps_dir)
+                                               
+                                     
         if os.path.exists(self.exp_dir):
             self.exp_dir = self.exp_dir + "_" + time.strftime("%H-%M-%S")
         os.makedirs(self.exp_dir)
@@ -63,7 +63,7 @@ def scatter_max(src, index, dim=-1, dim_size=None):
 
 def create_compact(class_tensor, value_tensor, target_size):
     max_vals = scatter_max(value_tensor, class_tensor, dim=-1, dim_size=target_size)
-    # max_vals = torch.index_select(max_vals, dim=-1, index=class_tensor)
+                                                                         
     return max_vals
 
 def create_type(index_tensor):
@@ -172,12 +172,12 @@ def log_loss_focal_probs(p_score, label, E, tau_2, one, thr=1e-7, plane=None):
         weights * one_hot * torch.log(torch.maximum(probs/tau_2, one * thr)) + \
         weights * (1 - one_hot) * torch.log(torch.maximum((1 - probs)/tau_2, one * thr)),
         dim=-1)
-    # loss = F.binary_cross_entropy_with_logits(probs / tau_2, one_hot, weight=weights, reduction='none')
+                                                                                                         
     loss = torch.mean(loss)
     return loss
 
 def log_loss_neg(p_score, label, E, tau_2, one, thr=1e-7, neg_size=10):
-    # one_hot = F.one_hot(label, E).float()
+                                           
     answer_score = torch.gather(p_score, dim=-1, index=label.unsqueeze(-1))
     batch_size = label.shape[0]
     neg_index = torch.randint(0, int(E), [batch_size, neg_size]).to(answer_score.device)
@@ -194,7 +194,7 @@ def log_loss_neg(p_score, label, E, tau_2, one, thr=1e-7, neg_size=10):
     return loss
 
 def log_loss_common(p_score, label, E, tau_2, thr=1e-7):
-    # one_hot = F.one_hot(label, E).float()
+                                           
     i_y = label.long()
     i_x = torch.arange(0, i_y.shape[0]).to(i_y.device)
     i = torch.stack([i_x, i_y], dim=0)
@@ -253,19 +253,19 @@ def sparse_matrix_multiply(A, B, target_size, r_size, tau_1, is_training=False, 
     non_zero = torch.nonzero(A) 
     non_zero = torch.unique(non_zero[:, 1]) 
 
-    non_zero_ori = block_is_in(row_indices, non_zero)  # 找出激活实体作为头实体对应的事实indices
-    row_indices_ori = torch.index_select(row_indices, index=non_zero_ori, dim=0)  # 激活实体作为头实体的事实的头实体
+    non_zero_ori = block_is_in(row_indices, non_zero)                           
+    row_indices_ori = torch.index_select(row_indices, index=non_zero_ori, dim=0)                    
     col_indices_ori = torch.index_select(col_indices, index=non_zero_ori, dim=0)  
     mask_values_ori = torch.index_select(mask_values, index=non_zero_ori, dim=0) 
     r_indices_ori = torch.index_select(r_indices, index=non_zero_ori, dim=0) 
-    # 如果提供了三元组权重，则获取对应的权重并转换为分数
+                               
     if weight is not None:
         C_ori = torch.index_select(weight, index=non_zero_ori.to(weight.device), dim=0).to(A.device)
         C_ori = score_function_2(C_ori)  
 
-    non_zero_inv = block_is_in(col_indices, non_zero)  # 所有激活实体作为尾实体的indice
-    row_indices_inv = torch.index_select(col_indices, index=non_zero_inv, dim=0)  # 原尾实体作为新头实体
-    col_indices_inv = torch.index_select(row_indices, index=non_zero_inv, dim=0)  # 原头实体作为新尾实体
+    non_zero_inv = block_is_in(col_indices, non_zero)                      
+    row_indices_inv = torch.index_select(col_indices, index=non_zero_inv, dim=0)              
+    col_indices_inv = torch.index_select(row_indices, index=non_zero_inv, dim=0)              
     mask_values_inv = torch.index_select(mask_values, index=non_zero_inv, dim=0)
     r_indices_inv = torch.index_select(r_indices, index=non_zero_inv, dim=0)
     if weight is not None:
@@ -274,24 +274,24 @@ def sparse_matrix_multiply(A, B, target_size, r_size, tau_1, is_training=False, 
 
     w = torch.softmax(w / tau_1, dim=-1)
 
-    A_values_ori = torch.index_select(A, dim=1, index=row_indices_ori)  # [batch_size, 激活三元组数]
-    B_values_ori = torch.index_select(w[:, :, :r_size], index=r_indices_ori, dim=2)  # [batch_size, L, 激活三元组数]
+    A_values_ori = torch.index_select(A, dim=1, index=row_indices_ori)                        
+    B_values_ori = torch.index_select(w[:, :, :r_size], index=r_indices_ori, dim=2)                           
     result_values_ori = torch.einsum('bm,blm->blm', A_values_ori, B_values_ori) * mask_values_ori.unsqueeze(0).unsqueeze(0)
     if weight is not None: result_values_ori = result_values_ori * C_ori.t().unsqueeze(dim=0)
-    result_ori = scatter(result_values_ori, col_indices_ori.long(), dim=2, dim_size=target_size)  # [batch_size, L, E]
+    result_ori = scatter(result_values_ori, col_indices_ori.long(), dim=2, dim_size=target_size)                      
 
-    A_values_inv = torch.index_select(A, dim=1, index=row_indices_inv)  # A: 所有batch内的三元组的one hot, row_indices_inv: 所有输入实体作为尾实体的三元组的indices。将one-hot中没有激活的维度移除
-    B_values_inv = torch.index_select(w[:, :, r_size:2 * r_size], index=r_indices_inv, dim=2) # 取出所有激活实体作为尾实体的关系的权重
-    result_values_inv = torch.einsum('bm,blm->blm', A_values_inv, B_values_inv) * mask_values_inv.unsqueeze(0).unsqueeze(0) # [b, l, n], 元素：第b个样本, 第l条规则，第n个事实作为尾实体被激活切能够通过规则传播的分数。
-    # print(r_indices_inv[torch.where(result_values_inv>0.1)[-1].unique()].unique())  # 被激活的事实所对应的关系
+    A_values_inv = torch.index_select(A, dim=1, index=row_indices_inv)                                                                                        
+    B_values_inv = torch.index_select(w[:, :, r_size:2 * r_size], index=r_indices_inv, dim=2)                      
+    result_values_inv = torch.einsum('bm,blm->blm', A_values_inv, B_values_inv) * mask_values_inv.unsqueeze(0).unsqueeze(0)                                                        
+                                                                                                    
     
-    if weight is not None: result_values_inv = result_values_inv * C_inv.t().unsqueeze(dim=0) # 再将此事实本身的权重乘上分数。
-    result_inv = scatter(result_values_inv, col_indices_inv.long(), dim=2, dim_size=target_size)  # [batch_size, L, E]
+    if weight is not None: result_values_inv = result_values_inv * C_inv.t().unsqueeze(dim=0)                  
+    result_inv = scatter(result_values_inv, col_indices_inv.long(), dim=2, dim_size=target_size)                      
 
     result_ind = None
     if not wot_i:  
-        # einsum('bm,bl->blm'): 
-        result_ind = torch.einsum('bm,bl->blm', A, w[:, :, -1])  # [batch_size, L, E]
+                                
+        result_ind = torch.einsum('bm,bl->blm', A, w[:, :, -1])                      
     
     return result_ind, result_ori, result_inv
 
@@ -332,7 +332,7 @@ def sparse_matrix_multiply_L_sample(A, B, target_size, r_size, tau_1, is_trainin
 
     w = torch.softmax(w / tau_1, dim=-1)
 
-    A_values_ori = torch.index_select(A, dim=-1, index=row_indices_ori) # 所有激活实体作为头实体的事实的头实体概率
+    A_values_ori = torch.index_select(A, dim=-1, index=row_indices_ori)                       
     if use_topk:
         k_ = min(topk_pruning, A_values_ori.shape[-1])
         A_values_ori_topk, A_values_ori_topk_indices = torch.topk(A_values_ori, k=k_)
@@ -343,16 +343,16 @@ def sparse_matrix_multiply_L_sample(A, B, target_size, r_size, tau_1, is_trainin
         if weight is not None:
             C_ori_topk = C_ori.squeeze(dim=-1)[A_values_ori_topk_indices]
             result_values_ori = result_values_ori * C_ori_topk
-        # if is_training: result_values_ori = dropout(result_values_ori)
+                                                                        
         col_indices_ori = col_indices_ori[A_values_ori_topk_indices]
         result_ori = scatter(result_values_ori, col_indices_ori.long(), dim=2, dim_size=target_size)
     else:
-        B_values_ori = torch.index_select(w[:, :, :r_size], index=r_indices_ori, dim=2) # 对应实体的关系的概率
+        B_values_ori = torch.index_select(w[:, :, :r_size], index=r_indices_ori, dim=2)             
         result_values_ori = A_values_ori * B_values_ori * mask_values_ori
-        # print(r_indices_ori[torch.where(result_values_ori>0.1)[-1].unique()].unique())  # 被激活的事实所对应的关系
+                                                                                                        
         if weight is not None:
             result_values_ori = result_values_ori * C_ori.squeeze(dim=-1)
-        # if is_training: result_values_ori = dropout(result_values_ori)
+                                                                        
         result_ori = scatter(result_values_ori, col_indices_ori.long(), dim=2, dim_size=target_size)
 
     A_values_inv = torch.index_select(A, dim=-1, index=row_indices_inv)
@@ -366,16 +366,16 @@ def sparse_matrix_multiply_L_sample(A, B, target_size, r_size, tau_1, is_trainin
         if weight is not None:
             C_inv_topk = C_inv.squeeze(dim=-1)[A_values_inv_topk_indices]
             result_values_inv = result_values_inv * C_inv_topk
-        # if is_training: result_values_inv = dropout(result_values_inv)
+                                                                        
         col_indices_inv = col_indices_inv[A_values_inv_topk_indices]
         result_inv = scatter(result_values_inv, col_indices_inv.long(), dim=2, dim_size=target_size)
     else:
         B_values_inv = torch.index_select(w[:, :, r_size:2 * r_size], index=r_indices_inv, dim=2)
         result_values_inv = A_values_inv * B_values_inv * mask_values_inv
-        # print(r_indices_inv[torch.where(result_values_inv>0.1)[-1].unique()].unique())  # 被激活的事实所对应的关系
+                                                                                                        
         if weight is not None:
             result_values_inv = result_values_inv * C_inv.squeeze(dim=-1)
-        # if is_training: result_values_inv = dropout(result_values_inv)
+                                                                        
         result_inv = scatter(result_values_inv, col_indices_inv.long(), dim=2, dim_size=target_size)
 
     result_ind = None
@@ -415,7 +415,7 @@ def sparse_matrix_multiply_max(A, B, target_size, r_size, tau_1, is_training=Fal
     B_values_ori = torch.index_select(w[:, :, :r_size], index=r_indices_ori, dim=2)
     result_values_ori = torch.einsum('bm,blm->blm', A_values_ori, B_values_ori) * mask_values_ori.unsqueeze(0).unsqueeze(0)
     if weight is not None: result_values_ori = result_values_ori * C_ori.t().unsqueeze(dim=0)
-    # if is_training: result_values_ori = dropout(result_values_ori)
+                                                                    
     index_ori = col_indices_ori.long() * r_size + r_indices_ori.long()
     type_ori = torch.unique(index_ori)
     type_index_ori = torch.searchsorted(type_ori, index_ori)
@@ -427,7 +427,7 @@ def sparse_matrix_multiply_max(A, B, target_size, r_size, tau_1, is_training=Fal
     B_values_inv = torch.index_select(w[:, :, r_size:2 * r_size], index=r_indices_inv, dim=2)
     result_values_inv = torch.einsum('bm,blm->blm', A_values_inv, B_values_inv) * mask_values_inv.unsqueeze(0).unsqueeze(0)
     if weight is not None: result_values_inv = result_values_inv * C_inv.t().unsqueeze(dim=0)
-    # if is_training: result_values_inv = dropout(result_values_inv)
+                                                                    
     index_inv = col_indices_inv.long() * r_size + r_indices_inv.long()
     type_inv = torch.unique(index_inv)
     type_index_inv = torch.searchsorted(type_inv, index_inv)
@@ -487,7 +487,7 @@ def sparse_matrix_multiply_L_sample_max(A, B, target_size, r_size, tau_1, is_tra
         if weight is not None:
             C_ori_topk = C_ori.squeeze(dim=-1)[A_values_ori_topk_indices]
             result_values_ori = result_values_ori * C_ori_topk
-        # if is_training: result_values_ori = dropout(result_values_ori)
+                                                                        
         col_indices_ori = col_indices_ori[A_values_ori_topk_indices]
         index_ori = col_indices_ori.long() * r_size + r_indices_ori[A_values_ori_topk_indices].long()
         type_index_ori, type_ori = create_type(index_ori)
@@ -499,7 +499,7 @@ def sparse_matrix_multiply_L_sample_max(A, B, target_size, r_size, tau_1, is_tra
         result_values_ori = A_values_ori * B_values_ori * mask_values_ori
         if weight is not None:
             result_values_ori = result_values_ori * C_ori.squeeze(dim=-1)
-        # if is_training: result_values_ori = dropout(result_values_ori)
+                                                                        
         index_ori = col_indices_ori.long() * r_size + r_indices_ori.long()
         type_ori = torch.unique(index_ori)
         type_index_ori = torch.searchsorted(type_ori, index_ori)
@@ -518,7 +518,7 @@ def sparse_matrix_multiply_L_sample_max(A, B, target_size, r_size, tau_1, is_tra
         if weight is not None:
             C_inv_topk = C_inv.squeeze(dim=-1)[A_values_inv_topk_indices]
             result_values_inv = result_values_inv * C_inv_topk
-        # if is_training: result_values_inv = dropout(result_values_inv)
+                                                                        
         col_indices_inv = col_indices_inv[A_values_inv_topk_indices]
         index_inv = col_indices_inv.long() * r_size + r_indices_inv[A_values_inv_topk_indices].long()
         type_index_inv, type_inv = create_type(index_inv)
@@ -530,7 +530,7 @@ def sparse_matrix_multiply_L_sample_max(A, B, target_size, r_size, tau_1, is_tra
         result_values_inv = A_values_inv * B_values_inv * mask_values_inv
         if weight is not None:
             result_values_inv = result_values_inv * C_inv.squeeze(dim=-1)
-        # if is_training: result_values_inv = dropout(result_values_inv)
+                                                                        
         index_inv = col_indices_inv.long() * r_size + r_indices_inv.long()
         type_inv = torch.unique(index_inv)
         type_index_inv = torch.searchsorted(type_inv, index_inv)
@@ -580,27 +580,27 @@ def sparse_matrix_multiply_sp(A, B, E, r_size, tau_1, is_training=False, dropout
         B_values = torch.index_select(w[:r_size, :], index=r_indices, dim=0)
         result_values = B_values.t() * mask_values.unsqueeze(0)
         if weight is not None: result_values = result_values * C_ori.t()
-        # if is_training: result_values = self.dropout(result_values)
+                                                                     
         col_indices_uni = torch.unique(col_indices)
         sorted_indices = torch.searchsorted(col_indices_uni, col_indices)
         result = scatter(result_values, sorted_indices.long(), dim=1, dim_size=col_indices_uni.shape[0])
-        # k = min(col_indices_uni.shape[0], topk)
-        # _, col_indices_uni_topk = torch.topk(result.sum(0), k, dim=-1)
+                                                 
+                                                                        
         index = torch.ones_like(col_indices_uni) * i
         index = torch.stack([index, col_indices_uni], dim=0)
         indices_all.append(index)
         results_all.append(result)
 
-        # A_values = torch.index_select(A, dim=1, index=row_indices)
+                                                                    
         B_values_inv = torch.index_select(w[r_size: 2 * r_size, :], index=r_indices_inv, dim=0)
         result_values_inv = B_values_inv.t() * mask_values_inv.unsqueeze(0)
         if weight is not None: result_values_inv = result_values_inv * C_inv.t()
-        # if is_training: result_values_inv = self.dropout(result_values_inv)
+                                                                             
         col_indices_uni_inv = torch.unique(col_indices_inv)
         sorted_indices_inv = torch.searchsorted(col_indices_uni_inv, col_indices_inv)
         result_inv = scatter(result_values_inv, sorted_indices_inv.long(), dim=1, dim_size=col_indices_uni_inv.shape[0])
-        # k = min(col_indices_uni_inv.shape[0], topk)
-        # _, col_indices_uni_topk_inv = torch.topk(result_inv.sum(0), k, dim=-1)
+                                                     
+                                                                                
         index = torch.ones_like(col_indices_uni_inv) * i
         index = torch.stack([index, col_indices_uni_inv], dim=0)
         indices_all_inv.append(index)
@@ -683,7 +683,7 @@ def sparse_matrix_multiply_L_sp(A, B, E, r_size, tau_1, is_training=False, dropo
             if weight is not None:
                 C_ori_topk = C_ori.squeeze(dim=1)[A_values_ori_topk_indices]
                 result_values_ori = result_values_ori * C_ori_topk
-            # if is_training: result_values_ori = dropout(result_values_ori)
+                                                                            
             col_indices_ori_topk = col_indices[A_values_ori_topk_indices]
             col_indices_uni = torch.unique(col_indices_ori_topk)
             sorted_indices = torch.searchsorted(col_indices_uni, col_indices_ori_topk)
@@ -693,13 +693,13 @@ def sparse_matrix_multiply_L_sp(A, B, E, r_size, tau_1, is_training=False, dropo
             result_values_ori = A_values_ori * B_values_ori * mask_values.unsqueeze(dim=1)
             if weight is not None:
                 result_values_ori = result_values_ori * C_ori.squeeze(dim=1)
-            # if is_training: result_values_ori = dropout(result_values_ori)
+                                                                            
             col_indices_uni = torch.unique(col_indices)
             sorted_indices = torch.searchsorted(col_indices_uni, col_indices)
             result_ori = scatter(result_values_ori, sorted_indices, dim=0, dim_size=col_indices_uni.shape[0])
 
-        # k = min(col_indices_uni.shape[0], topk)
-        # _, col_indices_uni = torch.topk(result.sum(1), k, dim=0)
+                                                 
+                                                                  
         index = torch.ones_like(col_indices_uni) * i
         index = torch.stack([index, col_indices_uni], dim=0)
         indices_all.append(index)
@@ -717,7 +717,7 @@ def sparse_matrix_multiply_L_sp(A, B, E, r_size, tau_1, is_training=False, dropo
             if weight is not None:
                 C_inv_topk = C_inv.squeeze(dim=1)[A_values_inv_topk_indices]
                 result_values_inv = result_values_inv * C_inv_topk
-            # if is_training: result_values_inv = dropout(result_values_inv)
+                                                                            
             col_indices_inv_topk = col_indices_inv[A_values_inv_topk_indices]
             col_indices_uni_inv = torch.unique(col_indices_inv_topk)
             sorted_indices_inv = torch.searchsorted(col_indices_uni_inv, col_indices_inv_topk)
@@ -728,7 +728,7 @@ def sparse_matrix_multiply_L_sp(A, B, E, r_size, tau_1, is_training=False, dropo
             result_values_inv = A_values_inv * B_values_inv * mask_values_inv.unsqueeze(dim=1)
             if weight is not None:
                 result_values_inv = result_values_inv * C_inv.squeeze(dim=1)
-            # if is_training: result_values_inv = dropout(result_values_inv)
+                                                                            
             col_indices_uni_inv = torch.unique(col_indices_inv)
             sorted_indices_inv = torch.searchsorted(col_indices_uni_inv, col_indices_inv)
             result_inv = scatter(result_values_inv, sorted_indices_inv, dim=0,
@@ -798,7 +798,7 @@ def sparse_matrix_multiply_sp_max(A, B, E, r_size, tau_1, is_training=False, dro
         B_values = torch.index_select(w[:r_size, :], index=r_indices, dim=0)
         result_values = B_values.t() * mask_values.unsqueeze(0)
         if weight is not None: result_values = result_values * C_ori.t()
-        # if is_training: result_values = self.dropout(result_values)
+                                                                     
         col_indices_uni = torch.unique(col_indices)
         sorted_indices = torch.searchsorted(col_indices_uni, col_indices)
 
@@ -808,18 +808,18 @@ def sparse_matrix_multiply_sp_max(A, B, E, r_size, tau_1, is_training=False, dro
         result_values = create_compact(type_index_ori, result_values, type_ori.shape[0])
         col_indices = type_ori // r_size
         result = scatter_sum(result_values, col_indices, dim=1, dim_size=col_indices_uni.shape[0])
-        # k = min(col_indices_uni.shape[0], topk)
-        # _, col_indices_uni_topk = torch.topk(result.sum(0), k, dim=-1)
+                                                 
+                                                                        
         index = torch.ones_like(col_indices_uni) * i
         index = torch.stack([index, col_indices_uni], dim=0)
         indices_all.append(index)
         results_all.append(result)
 
-        # A_values = torch.index_select(A, dim=1, index=row_indices)
+                                                                    
         B_values_inv = torch.index_select(w[r_size: 2 * r_size, :], index=r_indices_inv, dim=0)
         result_values_inv = B_values_inv.t() * mask_values_inv.unsqueeze(0)
         if weight is not None: result_values_inv = result_values_inv * C_inv.t()
-        # if is_training: result_values_inv = self.dropout(result_values_inv)
+                                                                             
         col_indices_uni_inv = torch.unique(col_indices_inv)
         sorted_indices_inv = torch.searchsorted(col_indices_uni_inv, col_indices_inv)
         
@@ -830,8 +830,8 @@ def sparse_matrix_multiply_sp_max(A, B, E, r_size, tau_1, is_training=False, dro
         col_indices_inv = type_inv // r_size
         
         result_inv = scatter_sum(result_values_inv, col_indices_inv, dim=1, dim_size=col_indices_uni_inv.shape[0])
-        # k = min(col_indices_uni_inv.shape[0], topk)
-        # _, col_indices_uni_topk_inv = torch.topk(result_inv.sum(0), k, dim=-1)
+                                                     
+                                                                                
         index = torch.ones_like(col_indices_uni_inv) * i
         index = torch.stack([index, col_indices_uni_inv], dim=0)
         indices_all_inv.append(index)
@@ -913,7 +913,7 @@ def sparse_matrix_multiply_L_sp_max(A, B, E, r_size, tau_1, is_training=False, d
             if weight is not None:
                 C_ori_topk = C_ori.squeeze(dim=1)[A_values_ori_topk_indices]
                 result_values_ori = result_values_ori * C_ori_topk
-            # if is_training: result_values_ori = dropout(result_values_ori)
+                                                                            
             col_indices_ori_topk = col_indices[A_values_ori_topk_indices]
             col_indices_uni = torch.unique(col_indices_ori_topk)
             sorted_indices = torch.searchsorted(col_indices_uni, col_indices_ori_topk)
@@ -929,7 +929,7 @@ def sparse_matrix_multiply_L_sp_max(A, B, E, r_size, tau_1, is_training=False, d
             result_values_ori = A_values_ori * B_values_ori * mask_values.unsqueeze(dim=1)
             if weight is not None:
                 result_values_ori = result_values_ori * C_ori.squeeze(dim=1)
-            # if is_training: result_values_ori = dropout(result_values_ori)
+                                                                            
             col_indices_uni = torch.unique(col_indices)
             sorted_indices = torch.searchsorted(col_indices_uni, col_indices)
 
@@ -940,8 +940,8 @@ def sparse_matrix_multiply_L_sp_max(A, B, E, r_size, tau_1, is_training=False, d
             col_indices = type_ori // r_size
             result_ori = scatter_sum(result_values_ori.t(), col_indices, dim=0, dim_size=col_indices_uni.shape[0])
 
-        # k = min(col_indices_uni.shape[0], topk)
-        # _, col_indices_uni = torch.topk(result.sum(1), k, dim=0)
+                                                 
+                                                                  
         index = torch.ones_like(col_indices_uni) * i
         index = torch.stack([index, col_indices_uni], dim=0)
         indices_all.append(index)
@@ -959,7 +959,7 @@ def sparse_matrix_multiply_L_sp_max(A, B, E, r_size, tau_1, is_training=False, d
             if weight is not None:
                 C_inv_topk = C_inv.squeeze(dim=1)[A_values_inv_topk_indices]
                 result_values_inv = result_values_inv * C_inv_topk
-            # if is_training: result_values_inv = dropout(result_values_inv)
+                                                                            
             col_indices_inv_topk = col_indices_inv[A_values_inv_topk_indices]
             col_indices_uni_inv = torch.unique(col_indices_inv_topk)
             sorted_indices_inv = torch.searchsorted(col_indices_uni_inv, col_indices_inv_topk)
@@ -976,7 +976,7 @@ def sparse_matrix_multiply_L_sp_max(A, B, E, r_size, tau_1, is_training=False, d
             result_values_inv = A_values_inv * B_values_inv * mask_values_inv.unsqueeze(dim=1)
             if weight is not None:
                 result_values_inv = result_values_inv * C_inv.squeeze(dim=1)
-            # if is_training: result_values_inv = dropout(result_values_inv)
+                                                                            
             col_indices_uni_inv = torch.unique(col_indices_inv)
             sorted_indices_inv = torch.searchsorted(col_indices_uni_inv, col_indices_inv)
 
@@ -1047,7 +1047,7 @@ def match_neibour( A, B, h, n, batch_size):
         indices_row = block_is_in(row_indices, non_zero)
         r_indices_row = torch.index_select(r_indices, index=indices_row, dim=0)
         indices_row_uni = torch.unique(r_indices_row, dim=0)
-        # B_values = torch.index_select(h[:, :n], index=indices_row_uni, dim=1)
+                                                                               
         B_values = torch.range(0, n - 1).to(A.device)
         B_values = torch.isin(B_values, indices_row_uni).float()
 
@@ -1057,11 +1057,11 @@ def match_neibour( A, B, h, n, batch_size):
         C_values = torch.range(0, n - 1).to(A.device)
         C_values = torch.isin(C_values, indices_col_uni).float()
         D_values = torch.ones(1).to(A.device)
-        #  C_values = torch.index_select(h[:, n:-1], index=indices_col_uni, dim=1)
-        # constraints = (h[:, -2:-1] + (1 - h[:, -2:-1]) * activation_jit(B_values + C_values, one)).unsqueeze(dim=0)
+                                                                                  
+                                                                                                                     
         constraints = torch.cat([B_values, C_values, D_values], dim=0)
         constraints = torch.einsum('n,ln->l', constraints, h[i])
-        # constraints = activation_jit(constraints.sum(dim=-1), one).unsqueeze(dim=0)
+                                                                                     
         results.append(constraints)
     return torch.cat(results, dim=0)
 
@@ -1091,21 +1091,21 @@ def max_sp(s):
     return torch.sparse_coo_tensor(indices.long(), values, torch.Size([shape[0], shape[1]]))
 
 def score_function(x):
-    # return torch.minimum(torch.relu(1 + x), torch.ones_like(x))
-    # return 0.5 + 0.5 * torch.sigmoid(x)
+                                                                 
+                                         
     return torch.sigmoid(x)
-    # return torch.minimum(torch.maximum(x, torch.tensor(0)), torch.tensor(1))
-    # return torch.nn.functional.softsign(x)
-    # return 0.5 * (F.softsign(x)) + 0.5
+                                                                              
+                                            
+                                        
 
 def score_function_2(x):
-    # return torch.minimum(torch.relu(1 + x), torch.ones_like(x))
-    # return 0.5 + 0.5 * torch.sigmoid(x)
+                                                                 
+                                         
     return x
 
 def mask_data(values, indices, score):
-    # for index in indices:
-    #     values[index] = score
+                           
+                               
     values[indices] = score
         
 def sym_update(set1, set2, set3):
@@ -1221,7 +1221,7 @@ def calculate_hits_full(state, batches, e2triple, triple2e, r2triple, graph, gra
         if use_eql:
             n = (scores == truth_score).int().sum() + 1
             rank = m + (n + 1) / 2
-            # info(m, n, rank, truth_score)
+                                           
         else:
             rank = m + 1
         hits[round(rank.item()) - 1:] += 1

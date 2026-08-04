@@ -1,4 +1,4 @@
-"""Minimal graph container used by DRUM kernels."""
+
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import torch
 
 class Graph:
     def __init__(self, facts_tensor: torch.Tensor, *, huge_graph: bool | None = None):
-        # Prefer views over copies when already integer. .int() can force a new
-        # storage on some builds (FB: another ~3.6 GiB for head/rel/tail alone).
+                                                                               
+                                                                                
         head = facts_tensor[:, 0]
         rel = facts_tensor[:, 1]
         tail = facts_tensor[:, 2]
@@ -23,8 +23,8 @@ class Graph:
         if huge_graph is None:
             huge_graph = n >= 50_000_000
         self.mask = torch.ones(n, dtype=torch.bool, device=self.head.device)
-        # FB-scale: mask_float is full-N float32 (≈1.22 GiB). FastLog only needs a
-        # multiplicative mask; proof.py broadcasts scalar 1.0 when this is None.
+                                                                                  
+                                                                                
         if huge_graph:
             self.mask_float = None
         else:

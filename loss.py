@@ -1,13 +1,13 @@
-"""Final-path losses.
 
-This file contains only the currently accepted TNB path:
 
-- split true-gradient TNB with proof-rule credit;
-- optional source-credit auxiliary;
-- false samples from the main batch budget;
-- no delete gate, source-value loss, unit commit, decoded-extra replay, or
-  relation-dynamic branches.
-"""
+                                                        
+
+                                                 
+                                   
+                                           
+                                                                          
+                            
+   
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ try:
     )
     from .graph import Graph
     from .negative import relation_subset_tensor_for_targets, rule_generated_negative_targets, sample_corrupt_targets
-except ImportError:  # direct script execution
+except ImportError:                           
     from drum import SupplyGatedDRUM
     from facts import encode_membership_keys, fact_membership_from_sorted_keys
     from proof import (
@@ -64,10 +64,10 @@ def orient_false_targets_for_query(targets: torch.Tensor, args: SimpleNamespace)
     return orient_targets_for_query(targets, args)
 
 
-# ---- chunked sparse NBE helpers (historical FB24G path, dialog 2026-07-10) ----
-# Keep sampled gate grads hybrid-sparse; park dense witness EMA on CPU; apply
-# self-pressure / ST / integrality by 1M-gate chunks so FB head70 never materializes
-# a full 214M float buffer on the GPU.
+                                                                                 
+                                                                             
+                                                                                    
+                                      
 
 @torch.no_grad()
 def _witness_probe_metrics(
@@ -75,7 +75,7 @@ def _witness_probe_metrics(
     batch_idx: torch.Tensor,
     gate_local: bool,
 ) -> tuple[float, int, float]:
-    """Read the one-shot witness diagnostic without changing its gradient."""
+    pass                                                                     
     detached = gradient.detach()
     leak = -1.0
     if detached.is_sparse:
@@ -107,7 +107,7 @@ def _witness_probe_metrics(
 
 
 def _sparse_gate_rows_values(gradient: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    """Return row indices and scalar values from a [N, 1] sparse gate grad."""
+    pass                                                                      
     sparse = gradient.coalesce()
     if sparse.dim() != 2 or int(sparse.shape[1]) != 1:
         raise RuntimeError(f"expected [N, 1] sparse gate gradient, got {tuple(sparse.shape)}")
@@ -128,7 +128,7 @@ def _sparse_gate_rows_values(gradient: torch.Tensor) -> tuple[torch.Tensor, torc
 
 
 def _sparse_parameter_dot(parameter: torch.Tensor, coefficient: torch.Tensor) -> torch.Tensor:
-    """Linear form whose backward keeps a sparse gate-parameter gradient."""
+    pass                                                                    
     if not coefficient.is_sparse:
         return (parameter * coefficient).sum()
     rows, values = _sparse_gate_rows_values(coefficient)
@@ -143,7 +143,7 @@ def _update_witness_ema_(
     beta: float,
     touch_clocked: bool = False,
 ) -> None:
-    """Exact witness EMA for both plain and touch-clocked schedules."""
+    pass                                                               
     if touch_clocked:
         if gradient.is_sparse:
             rows, values = _sparse_gate_rows_values(gradient)
@@ -175,7 +175,7 @@ def apply_chunked_nbe_gate_update(
     args: SimpleNamespace,
     optimizers: list,
 ) -> dict:
-    """Apply the old dense NBE gate gradient without materializing it on GPU."""
+    pass                                                                        
     pending = getattr(args, "_nbe_dense_update_pending", None)
     args._nbe_dense_update_pending = None
     if not bool(getattr(args, "_nbe_chunked_dense_update", False)) or pending is None:
@@ -211,10 +211,10 @@ def apply_chunked_nbe_gate_update(
     elif sparse_grad.is_sparse:
         sparse_rows, sparse_values = _sparse_gate_rows_values(sparse_grad)
     else:
-        # Dense autograd gate grad escaped (should be hybrid-sparse via
-        # F.embedding + SparseTrainTargetLogitEdgeScores). Do NOT raise:
-        # the dense buffer is already resident, so chunk-add it — same SGD
-        # step, no extra peak. Log once so we can still hunt the densifier.
+                                                                       
+                                                                        
+                                                                          
+                                                                           
         dense_grad_flat = sparse_grad.detach().view(-1)
         sparse_rows = torch.empty(0, dtype=torch.long, device=model.weight_param.device)
         sparse_values = model.weight_param.new_empty(0)
@@ -352,7 +352,7 @@ def source_credit_aux_from_proof(
     target_supply: torch.Tensor,
     proof_without_self: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor, int]:
-    """Evaluate the unchanged source-credit formula for an existing proof."""
+    pass                                                                     
     credit_weight = (1.0 - target_supply).detach()
     active = int((credit_weight.detach() > 0).sum().item())
     weight_sum = credit_weight.sum()
@@ -426,24 +426,24 @@ def target_net_benefit_loss_final(
         with proof_graph_masked_edge_context(model, batch_idx, args):
                 true_covered = proof_scores_for_targets(model, targets, graph, args, True)
     if True:
-        # Net-benefit equilibrium: each sampled fact carries its full storage
-        # economics, differentiably. keep_cost_i = σ_i + (1−σ_i)(1−c_i):
-        #  - self-pressure ∂cost/∂σ_i = c_i — delete pressure exists only for
-        #    facts whose recovery the SAME forward just demonstrated (coverage-
-        #    matched with witness credit by construction; no global pressure term);
-        #  - witness credit: raising σ_w lifts c_i and lowers (1−σ_i)(1−c_i);
-        #  - underivable facts (c_i≈0) feel no self-pressure; they leave only if
-        #    the extras term below (gate-differentiable in this mode) outweighs
-        #    their missing cost — strategic missing as an emergent gradient trade.
+                                                                             
+                                                                        
+                                                                             
+                                                                               
+                                                                                   
+                                                                             
+                                                                                
+                                                                               
+                                                                                  
         supply_live = indexed_soft_supply(model, batch_idx)
         c_econ = true_covered
         cache = getattr(args, "_nbe_c_cache", None)
         if False:
-            # Live-term jitter: symmetric witness pairs sit on an exact force
-            # balance (own self-pressure c vs partner's witness credit) that no
-            # amount of touches breaks — a fixed hash-seeded personality tilts
-            # each member's pressure/credit ratio so one side moves first; the
-            # survivor is then protected by its own c drop (live two-way force).
+                                                                             
+                                                                               
+                                                                              
+                                                                              
+                                                                                
             jit = getattr(args, "_nbe_jitter_cache", None)
             if jit is None or jit.numel() != cache.numel():
                 g = torch.Generator()
@@ -458,20 +458,20 @@ def target_net_benefit_loss_final(
             )
             c_econ = (c_econ * (1.0 + jit[live_idx].view(c_econ.shape))).clamp(0.0, 1.0)
         keep_cost = supply_live + (1.0 - supply_live) * (1.0 - c_econ)
-        # Restore the per-gate force removed by the mean loss.
+                                                              
         keep_cost = keep_cost.detach() + (keep_cost - keep_cost.detach()) * (
             0.5 * float(keep_cost.numel())
         )
-        # rules keep learning every fact regardless of gate state (starvation fix)
+                                                                                  
         rule_grad = (4.0 if args.dataset == "family" else 16.0) * true_covered
         inferred_true = -keep_cost + rule_grad - rule_grad.detach()
         if False:
-            # rule floor should teach RULES only ("rules keep learning every
-            # fact regardless of gate state") - but its gradient also flows
-            # through the proof into witness gates, paying every witness a
-            # floor-sized keep subsidy that drowns the delete economics.
-            # Cancel exactly the gate component: measure it with one grad
-            # pass and replay the negation value-clean. Rule params untouched.
+                                                                            
+                                                                           
+                                                                          
+                                                                        
+                                                                         
+                                                                              
             rule_grad_sum = rule_grad.sum()
             g_rf = (
                 torch.autograd.grad(rule_grad_sum, model.weight_param, retain_graph=True, allow_unused=True)[0]
@@ -492,33 +492,33 @@ def target_net_benefit_loss_final(
             "integrality_gamma": 0.0,
         }
         if True:
-            # Dense witness-credit amortization: dense self-pressure applies
-            # full force c_i to every measured gate every step, but the credit
-            # side -(1-sigma_j) dc_j/dtheta_w only fires when a beneficiary is
-            # sampled (~B/N of full force) -- that schedule asymmetry starves
-            # keep-credit against delete-pressure. Measure the exact credit
-            # gradient from THIS batch's already-recorded proof graph (one
-            # extra grad pass, no new sampling, no second estimation layer),
-            # unbias to population scale, EMA, replay densely. Batch positions
-            # are zero by construction (own edges masked in the proof forward).
+                                                                            
+                                                                              
+                                                                              
+                                                                             
+                                                                           
+                                                                          
+                                                                            
+                                                                              
+                                                                               
             c_credit = c_econ.view(-1)
             credit_sum = ((1.0 - supply_live).detach().view(-1) * c_credit).sum()
-            # degenerate batches (e.g. every sampled target masked out of the
-            # proof forward) can leave credit_sum with no grad_fn at all --
-            # autograd.grad rejects that outright even with allow_unused=True
-            # (unused-but-differentiable is fine; never-differentiable isn't).
-            # Treat it the same as the already-handled "no credit this step"
-            # case (gw=None) instead of crashing a long run over one batch.
+                                                                             
+                                                                           
+                                                                             
+                                                                              
+                                                                            
+                                                                           
             gw = (
                 torch.autograd.grad(credit_sum, model.weight_param, retain_graph=True, allow_unused=True)[0]
                 if credit_sum.requires_grad
                 else None
             )
             if gw is not None:
-                # E[batch credit grad] = (B/N)*population, so *N/B makes
-                # lam_w=1.0 mean fully symmetric economics on every dataset.
-                # Prefer in-place scale: the out-of-place `gw * w_scale` was the
-                # FB OOM site (extra 818 MiB dense copy of 214M gates).
+                                                                        
+                                                                            
+                                                                                
+                                                                       
                 w_scale = float(facts_tensor.shape[0]) / float(max(int(batch_idx.numel()), 1))
                 if gw.is_sparse:
                     gw = gw.coalesce()
@@ -538,9 +538,9 @@ def target_net_benefit_loss_final(
                     print(f"[WITNESS_PROBE] absmax={absmax:.3e} nnz={nnz} batch_leak={leak:.3e}", flush=True)
                 w_cache = getattr(args, "_nbe_w_cache", None)
                 if w_cache is None or w_cache.shape != model.weight_param.shape:
-                    # Dense EMA is not consumed by FastLog. On the chunked
-                    # huge-graph path, park it on CPU so the next proof graph
-                    # does not share O(#gates) GPU bytes with the EMA.
+                                                                          
+                                                                             
+                                                                      
                     cache_device = (
                         torch.device("cpu")
                         if chunked_dense_update and model.weight_param.device.type == "cuda"
@@ -574,7 +574,7 @@ def target_net_benefit_loss_final(
                 if chunked_dense_update:
                     dense_update_pending["witness_gain"] = 1.0
                 else:
-                    # gradient-only replay: descent moves theta_w along +w_cache
+                                                                                
                     w_replay = (model.weight_param * w_cache.detach().to(model.weight_param.device)).sum()
                     inferred_true = inferred_true + (w_replay - w_replay.detach())
         if cache is not None:
@@ -583,11 +583,11 @@ def target_net_benefit_loss_final(
                 if bool(getattr(args, "_nbe_c_cache_is_gate_local", False))
                 else batch_idx
             )
-            # Stale-gradient amortization: sparse touches MEASURE c; the dense
-            # term applies the measured self-pressure to every measured gate
-            # each step. Under chunked sparse NBE that dense term is applied
-            # later by apply_chunked_nbe_gate_update in 1M-gate chunks — never
-            # as a full-M GPU buffer (the FB OOM class).
+                                                                              
+                                                                            
+                                                                            
+                                                                              
+                                                        
             with torch.no_grad():
                 old = cache[cache_idx]
                 fresh = c_econ.detach().view(-1)
@@ -675,8 +675,8 @@ def source_credit_aux_loss_final(
     args: SimpleNamespace,
 ) -> tuple[torch.Tensor, torch.Tensor, int]:
     if model.step < 1:
-        # Use weight_param, never model.weight: the property expands full-N logits
-        # (FB head70 = 818 MiB) and was the post-chunked OOM site on the zero path.
+                                                                                  
+                                                                                   
         zero = torch.zeros((), dtype=model.weight_param.dtype, device=model.weight_param.device)
         return zero, zero, 0
 

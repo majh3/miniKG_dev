@@ -1,4 +1,4 @@
-"""Negative sampling helpers for the final TNB path."""
+
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import torch
 
 try:
     from .facts import encode_membership_keys, fact_membership_from_sorted_keys
-except ImportError:  # direct script execution
+except ImportError:                           
     from facts import encode_membership_keys, fact_membership_from_sorted_keys
 
 

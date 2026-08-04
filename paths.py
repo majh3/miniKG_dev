@@ -1,4 +1,4 @@
-"""Repository-local paths used by the standalone MiniKG core."""
+
 
 from __future__ import annotations
 

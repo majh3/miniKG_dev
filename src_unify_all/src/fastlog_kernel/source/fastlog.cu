@@ -489,28 +489,28 @@ __global__ void fill_sparse3d_identity_kernel(
     int64_t n
 );
 
-// =========================================================================
-// Phase 1: Fused forward ORI+INV kernel
-// Merges forward_ori + forward_inv into one launch.
-// Benefit: saves 1 kernel launch, reuses a_val from registers.
-// Identity stays separate (different parallelism pattern).
-// =========================================================================
+                                                                            
+                                        
+                                                    
+                                                               
+                                                           
+                                                                            
 template <typename scalar_t>
 __global__ void fastlog_forward_fused_kernel(
     const scalar_t* __restrict__ A,
     const scalar_t* __restrict__ w,
     const int64_t* __restrict__ active_nodes,
-    // ORI CSR
+              
     const int32_t* __restrict__ ori_row_ptr,
     const int32_t* __restrict__ ori_col_ind,
     const int16_t* __restrict__ ori_r_ind,
     const scalar_t* __restrict__ ori_mask,
-    // INV CSR
+              
     const int32_t* __restrict__ inv_row_ptr,
     const int32_t* __restrict__ inv_col_ind,
     const int16_t* __restrict__ inv_r_ind,
     const scalar_t* __restrict__ inv_mask,
-    // outputs
+              
     scalar_t* __restrict__ out_ori,
     scalar_t* __restrict__ out_inv,
     int64_t num_active,
@@ -530,10 +530,10 @@ __global__ void fastlog_forward_fused_kernel(
     int64_t src = active_nodes[node_idx];
     int64_t bl = blockIdx.y * WARP_SIZE + threadIdx.x;
 
-    // Load a_val once, reuse for both ORI and INV
+                                                  
     scalar_t a_val = (bl < BL) ? A[bl * E + src] : 0;
 
-    // --- ORI edges ---
+                        
     {
         int64_t ptr_start = ori_row_ptr[src];
         int64_t ptr_end = ori_row_ptr[src + 1];
@@ -561,7 +561,7 @@ __global__ void fastlog_forward_fused_kernel(
         }
     }
 
-    // --- INV edges (reuses a_val already in register) ---
+                                                           
     {
         int64_t ptr_start = inv_row_ptr[src];
         int64_t ptr_end = inv_row_ptr[src + 1];
@@ -590,7 +590,7 @@ __global__ void fastlog_forward_fused_kernel(
     }
 }
 
-// Identity kernel (unchanged from v1)
+                                      
 template <typename scalar_t>
 __global__ void fastlog_identity_kernel(
     const scalar_t* __restrict__ A,
@@ -608,10 +608,10 @@ __global__ void fastlog_identity_kernel(
     out[idx] = A[idx] * w[bl * n + (n - 1)];
 }
 
-// =========================================================================
-// Phase 1: Fused backward ORI+INV kernel
-// Merges backward_ori + backward_inv into one launch.
-// =========================================================================
+                                                                            
+                                         
+                                                      
+                                                                            
 template <typename scalar_t>
 __global__ void fastlog_backward_fused_kernel(
     const scalar_t* __restrict__ grad_ori,
@@ -619,17 +619,17 @@ __global__ void fastlog_backward_fused_kernel(
     const scalar_t* __restrict__ A,
     const scalar_t* __restrict__ w,
     const int64_t* __restrict__ active_nodes,
-    // ORI CSR
+              
     const int32_t* __restrict__ ori_row_ptr,
     const int32_t* __restrict__ ori_col_ind,
     const int16_t* __restrict__ ori_r_ind,
     const scalar_t* __restrict__ ori_mask,
-    // INV CSR
+              
     const int32_t* __restrict__ inv_row_ptr,
     const int32_t* __restrict__ inv_col_ind,
     const int16_t* __restrict__ inv_r_ind,
     const scalar_t* __restrict__ inv_mask,
-    // outputs
+              
     scalar_t* __restrict__ gA,
     scalar_t* __restrict__ gw,
     int64_t num_active,
@@ -651,7 +651,7 @@ __global__ void fastlog_backward_fused_kernel(
 
     scalar_t a_val = (bl < BL) ? A[bl * E + src] : 0;
 
-    // --- ORI backward ---
+                           
     {
         int64_t ptr_start = ori_row_ptr[src];
         int64_t ptr_end = ori_row_ptr[src + 1];
@@ -683,7 +683,7 @@ __global__ void fastlog_backward_fused_kernel(
         }
     }
 
-    // --- INV backward ---
+                           
     {
         int64_t ptr_start = inv_row_ptr[src];
         int64_t ptr_end = inv_row_ptr[src + 1];
@@ -716,7 +716,7 @@ __global__ void fastlog_backward_fused_kernel(
     }
 }
 
-// Identity backward kernel (unchanged from v1)
+                                               
 template <typename scalar_t>
 __global__ void fastlog_identity_backward_kernel(
     const scalar_t* __restrict__ grad_ind,
@@ -1404,9 +1404,9 @@ __global__ void fastlog_backward_topk_fused_kernel(
     );
 }
 
-// =========================================================================
-// Forward API — 2 launches instead of 3 (identity + fused ORI/INV)
-// =========================================================================
+                                                                            
+                                                                   
+                                                                            
 std::tuple<Tensor, Tensor, Tensor> fastlog_forward_cuda(
     const Tensor &A_, const Tensor &w_,
     const Tensor &active_nodes_,
@@ -1450,7 +1450,7 @@ std::tuple<Tensor, Tensor, Tensor> fastlog_forward_cuda(
     Tensor out_ori = at::zeros({BL, E}, A.options());
     Tensor out_inv = at::zeros({BL, E}, A.options());
 
-    // Launch 1: Identity (unchanged)
+                                     
     if (!wot_i) {
         int threads = 256;
         int blocks = (BL * E + threads - 1) / threads;
@@ -1462,9 +1462,9 @@ std::tuple<Tensor, Tensor, Tensor> fastlog_forward_cuda(
         });
     }
 
-    // Launch 2: Group-based ORI + INV path. For non-topk, pass a very large K
-    // so the kernel expands all edges but still uses the same relation-group
-    // traversal as the topk path.
+                                                                              
+                                                                             
+                                  
     if (num_active > 0) {
         dim3 block(TOPK_THREADS_PER_BLOCK);
         dim3 grid(num_active, BL);
@@ -1568,9 +1568,9 @@ std::tuple<Tensor, Tensor, Tensor, Tensor, Tensor> fastlog_forward_max_cuda(
     return std::make_tuple(out_ind, out_ori, out_inv, ori_arg, inv_arg);
 }
 
-// =========================================================================
-// Backward API — 2 launches instead of 3 (identity_bwd + fused ORI/INV bwd)
-// =========================================================================
+                                                                            
+                                                                            
+                                                                            
 std::tuple<Tensor, Tensor> fastlog_backward_cuda(
     const Tensor &grad_ind_, const Tensor &grad_ori_, const Tensor &grad_inv_,
     const Tensor &out_ori_, const Tensor &out_inv_,
@@ -1617,7 +1617,7 @@ std::tuple<Tensor, Tensor> fastlog_backward_cuda(
     Tensor gA = at::zeros({BL, E}, A.options());
     Tensor gw = at::zeros({BL, n}, w.options());
 
-    // Launch 1: Identity backward (unchanged)
+                                              
     if (!wot_i) {
         int threads = 256;
         int blocks = (BL + threads - 1) / threads;
@@ -1631,8 +1631,8 @@ std::tuple<Tensor, Tensor> fastlog_backward_cuda(
         });
     }
 
-    // Launch 2: Group-based ORI + INV backward. For non-topk, pass a very
-    // large K so the kernel expands all edges but keeps the same traversal.
+                                                                          
+                                                                            
     if (num_active > 0) {
         dim3 block(TOPK_THREADS_PER_BLOCK);
         dim3 grid(num_active, BL);
@@ -2008,10 +2008,10 @@ std::tuple<Tensor,Tensor> fastlog_backward_maxgroup_cuda(
     return std::make_tuple(gA, gw);
 }
 
-// =========================================================================
-// Phase 2: compute_active_nodes on GPU (avoids Python nonzero+unique sync)
-// Input: A_flat [BL, E] (float). Returns sorted int64 tensor of active cols.
-// =========================================================================
+                                                                            
+                                                                           
+                                                                             
+                                                                            
 __global__ void mark_active_kernel(
     const float* __restrict__ A,
     int32_t* __restrict__ flags,
@@ -2041,15 +2041,15 @@ Tensor compute_active_nodes_cuda(const Tensor &A_flat) {
     return flags.nonzero().reshape(-1).to(at::kLong);
 }
 
-// =========================================================================
-// Phase 2: apply_mask on GPU — fuses indexing + score_function + multiply
-// mask_out[i] = mask_values[order[i]] * score_func(weight[order[i]])
-// score_func(x) = sigmoid(x)
-// =========================================================================
+                                                                            
+                                                                          
+                                                                     
+                             
+                                                                            
 __global__ void apply_mask_kernel(
     const float* __restrict__ mask_values,
     const int32_t* __restrict__ order,
-    const float* __restrict__ weight,  // nullptr if no weight
+    const float* __restrict__ weight,                         
     float* __restrict__ out,
     int64_t nnz,
     bool has_weight
@@ -3180,4 +3180,4 @@ fastlog_backward_sparse3d_topk_aligned_cuda(
     return std::make_tuple(grad_sp_value, grad_w);
 }
 
-} // namespace fastlog
+}                     

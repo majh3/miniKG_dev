@@ -15,9 +15,9 @@ Tensor ind2ptr(const Tensor &index, int64_t size) {
     return at::cat({ptr, total});
 }
 
-// =========================================================================
-// Bucket-based top-k helpers (aligned with CUDA forward_topk_row)
-// =========================================================================
+                                                                            
+                                                                  
+                                                                            
 constexpr int NUM_BUCKETS = 256;
 
 template <class scalar_t>
@@ -26,8 +26,8 @@ static inline int bucketize_weight_cpu(scalar_t score) {
     return std::min(std::max(bucket, 0), NUM_BUCKETS - 1);
 }
 
-// Process one direction for a single (active_node, bl) pair.
-// Mirrors CUDA forward_topk_row exactly: histogram → threshold → prune.
+                                                             
+                                                                        
 template <class scalar_t>
 static void forward_topk_row_cpu(
     int64_t src, int64_t bl, scalar_t a_val,
@@ -45,7 +45,7 @@ static void forward_topk_row_cpu(
     int64_t g_start = row_group_ptr[src];
     int64_t g_end   = row_group_ptr[src + 1];
 
-    // Phase 1: Build histogram of edge counts per weight bucket
+                                                                
     int counts[NUM_BUCKETS] = {};
     int64_t total_edges = 0;
     for (int64_t g = g_start; g < g_end; ++g) {
@@ -57,7 +57,7 @@ static void forward_topk_row_cpu(
         total_edges += cnt;
     }
 
-    // Phase 2: Find threshold bucket (greedy from high to low)
+                                                               
     int threshold_bucket = -1;
     int64_t keep_in_threshold = 0;
     if (total_edges > topk_edges) {
@@ -72,7 +72,7 @@ static void forward_topk_row_cpu(
         }
     }
 
-    // Phase 3: Iterate groups with pruning
+                                           
     int64_t threshold_seen = 0;
     for (int64_t g = g_start; g < g_end; ++g) {
         int64_t rel = group_rel[g];
@@ -103,7 +103,7 @@ static void forward_topk_row_cpu(
     }
 }
 
-// Backward helper: same bucket-based pruning to identify kept edges.
+                                                                     
 template <class scalar_t>
 static void backward_topk_row_cpu(
     int64_t src, int64_t bl,
@@ -122,7 +122,7 @@ static void backward_topk_row_cpu(
     int64_t g_start = row_group_ptr[src];
     int64_t g_end   = row_group_ptr[src + 1];
 
-    // Phase 1 + 2: identical bucketing / threshold as forward
+                                                              
     int counts[NUM_BUCKETS] = {};
     int64_t total_edges = 0;
     for (int64_t g = g_start; g < g_end; ++g) {
@@ -147,7 +147,7 @@ static void backward_topk_row_cpu(
         }
     }
 
-    // Phase 3: gradient accumulation on kept edges only
+                                                        
     scalar_t a_val = A[bl * E + src];
     int64_t threshold_seen = 0;
     for (int64_t g = g_start; g < g_end; ++g) {
@@ -182,14 +182,14 @@ static void backward_topk_row_cpu(
     }
 }
 
-// =========================================================================
-// Forward: group-based iteration with top-k pruning
-// =========================================================================
+                                                                            
+                                                    
+                                                                            
 template <class scalar_t>
 void fastlog_forward_out_cpu(
-    const scalar_t *A,              // [BL, E]
-    const scalar_t *w,              // [BL, n]
-    const int64_t  *active,         // [num_active]
+    const scalar_t *A,                        
+    const scalar_t *w,                        
+    const int64_t  *active,                        
     int64_t         num_active,
     const int32_t  *ori_col_ind,
     const scalar_t *ori_mask,
@@ -214,7 +214,7 @@ void fastlog_forward_out_cpu(
     std::memset(out_ori, 0, BLE * sizeof(scalar_t));
     std::memset(out_inv, 0, BLE * sizeof(scalar_t));
 
-    // Identity: out_ind[bl,e] = A[bl,e] * w[bl,-1]
+                                                   
     if (!wot_i) {
         for (int64_t bl = 0; bl < BL; bl++) {
             scalar_t wid = w[bl * n + (n - 1)];
@@ -227,7 +227,7 @@ void fastlog_forward_out_cpu(
         std::memset(out_ind, 0, BLE * sizeof(scalar_t));
     }
 
-    // ORI + INV: group-based iteration with top-k pruning
+                                                          
     for (int64_t ai = 0; ai < num_active; ++ai) {
         int64_t src = active[ai];
         for (int64_t bl = 0; bl < BL; ++bl) {
@@ -247,9 +247,9 @@ void fastlog_forward_out_cpu(
     }
 }
 
-// =========================================================================
-// Backward: group-based iteration with top-k pruning
-// =========================================================================
+                                                                            
+                                                     
+                                                                            
 template <class scalar_t>
 void fastlog_backward_out_cpu(
     const scalar_t *grad_ind,
@@ -281,7 +281,7 @@ void fastlog_backward_out_cpu(
     std::memset(gA, 0, BLE * sizeof(scalar_t));
     std::memset(gw, 0, BLn * sizeof(scalar_t));
 
-    // Identity backward
+                        
     if (!wot_i) {
         for (int64_t bl = 0; bl < BL; bl++) {
             scalar_t wid = w[bl * n + (n - 1)];
@@ -295,7 +295,7 @@ void fastlog_backward_out_cpu(
         }
     }
 
-    // ORI + INV backward with top-k pruning
+                                            
     for (int64_t ai = 0; ai < num_active; ++ai) {
         int64_t src = active[ai];
         for (int64_t bl = 0; bl < BL; ++bl) {
@@ -314,9 +314,9 @@ void fastlog_backward_out_cpu(
     }
 }
 
-// =========================================================================
-// Public API
-// =========================================================================
+                                                                            
+             
+                                                                            
 
 std::tuple<Tensor, Tensor, Tensor> fastlog_forward_cpu(
     const Tensor &A_, const Tensor &w_,
@@ -429,7 +429,7 @@ std::tuple<Tensor, Tensor> fastlog_backward_cpu(
     return std::make_tuple(gA, gw);
 }
 
-} // namespace fastlog
+}                     
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("ind2ptr",              &fastlog::ind2ptr);

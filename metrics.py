@@ -1,4 +1,4 @@
-"""Small value objects used by the final training path."""
+
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class DecodeMetrics:
     relation_rows: list[dict[str, int]]
     policy: str = "global_threshold"
     policy_bytes: int = 0
-    # L1 probe projection (ranking-only; absent for formal uncapped)
+                                                                    
     projected_fact_rate: float | None = None
     projected_cost: float | None = None
     projected_recall_mean: float | None = None
