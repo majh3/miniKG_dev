@@ -12,6 +12,7 @@ def build_backend_args(
     cfg: SimpleNamespace,
     orientation_inverse: np.ndarray,
     device: torch.device,
+    decode_relations: list[int] | None = None,
 ) -> SimpleNamespace:
     large_graph = cfg.dataset in {"freebase", "wikidata5m"}
     args = SimpleNamespace(
@@ -31,11 +32,7 @@ def build_backend_args(
         decode_batch_size=(64 if cfg.dataset == "freebase" else 512 if large_graph else 4096 if cfg.dataset == "family" else 1024),
         decode_proof_microbatch_size=(64 if cfg.dataset == "freebase" else 256 if cfg.dataset == "wikidata5m" else 0),
         threshold_qsth_query_source=("supply_entities" if cfg.dataset == "family" else "supply_heads"),
-        decode_relations=(
-            "0,3,5,6,10,12,15,16,20,24,38" if cfg.dataset == "wikidata5m"
-            else "2,151,0,3,4,145,1,1025,6,96,25,222,35,29,9,8,5,646,32,315,12,11,1028,648,989,106,371,10,317,7,316,31,344,3395,225,3713,3711,3715,30,730,1168,60,172,97,61,447,74,311,75,647,22,152,236,1165,1162,1164,3712,649,11009,34,1163,987,533,154,271,23,21,153,20,3026,985,47,140,107,224,645,46,36,6100,59,62,7042,986,231,84,86,3191,2877,1448,3520,3517"
-            if cfg.dataset == "freebase" else ""
-        ),
+        decode_relations=",".join(str(relation) for relation in decode_relations or []),
     )
     args._tnb_false_main_batch_count = 0
     args._tnb_proof_supply_override = None

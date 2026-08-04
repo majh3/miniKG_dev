@@ -32,16 +32,37 @@ def load_facts(path: str, data_format: str = "auto", assume_unique: bool = False
     return facts if assume_unique else sorted(set(facts))
 
 
+def load_named_facts(path: Path) -> np.ndarray:
+    triples = []
+    entity_names = set()
+    relation_names = set()
+    with path.open(encoding="utf-8") as fin:
+        for line in fin:
+            head, relation, tail = line.rstrip("\n").split("\t")
+            triples.append((head, relation, tail))
+            entity_names.update((head, tail))
+            relation_names.add(relation)
+    entities = {name: index for index, name in enumerate(sorted(entity_names))}
+    relations = {name: index for index, name in enumerate(sorted(relation_names))}
+    facts = [
+        (entities[head], relations[relation], entities[tail])
+        for head, relation, tail in triples
+    ]
+    return np.asarray(sorted(set(facts)), dtype=np.int64)
+
+
 def load_dataset(cfg: SimpleNamespace) -> tuple[np.ndarray, int, int]:
     npy_path = Path(f"data/{cfg.dataset}/all_id.npy")
     if cfg.dataset == "freebase" and not npy_path.exists():
         npy_path = Path("data/freebase/train.npy")
+    named_path = Path(f"data/{cfg.dataset}/triples.tsv")
     text_path = Path(f"data/{cfg.dataset}/all_id.txt")
-    path = npy_path if npy_path.exists() else text_path
-    facts = np.asarray(
-        load_facts(str(path), data_format="auto", assume_unique=False),
-        dtype=np.int64,
-    )
+    if npy_path.exists():
+        facts = np.asarray(load_facts(str(npy_path)), dtype=np.int64)
+    elif named_path.exists():
+        facts = load_named_facts(named_path)
+    else:
+        facts = np.asarray(load_facts(str(text_path)), dtype=np.int64)
     entity_count, relation_count = infer_entity_relation_count(facts)
     return facts, entity_count, relation_count
 

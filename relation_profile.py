@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import numpy as np
 import torch
 
@@ -20,8 +21,22 @@ def select_relations(metrics: DecodeMetrics, threshold: float) -> list[int]:
     ]
 
 
+def select_relation_head(facts: np.ndarray, coverage: float) -> list[int]:
+    relations = np.asarray(facts[:, 1], dtype=np.int64)
+    counts = np.bincount(relations)
+    relation_ids = np.arange(counts.size, dtype=np.int64)
+    order = np.lexsort((relation_ids, -counts))
+    order = order[counts[order] > 0]
+    cumulative = np.cumsum(counts[order], dtype=np.int64)
+    count = int(np.searchsorted(
+        cumulative,
+        int(math.ceil(float(coverage) * int(facts.shape[0]))),
+        side="left",
+    ) + 1)
+    return [int(relation) for relation in order[:count]]
+
+
 def subset_state(model, facts: np.ndarray, relations: list[int]) -> dict[str, torch.Tensor]:
-    pass                                                                      
     selected_global = np.flatnonzero(
         np.isin(np.asarray(facts)[:, 1], np.asarray(relations, dtype=np.int64))
     )

@@ -11,21 +11,13 @@ import torch
 try:
     from .config import parse_config
     from .data import load_dataset, orientation_inverse, orientation_list
-    from .relation_profile import select_relations, subset_state
+    from .relation_profile import select_relation_head, select_relations, subset_state
     from .train import train_once
 except ImportError:                           
     from config import parse_config
     from data import load_dataset, orientation_inverse, orientation_list
-    from relation_profile import select_relations, subset_state
+    from relation_profile import select_relation_head, select_relations, subset_state
     from train import train_once
-
-
-def _large_graph_train_relations(dataset: str) -> list[int] | None:
-    if dataset == "wikidata5m":
-        return [0, 15, 3, 10, 4, 5, 6, 11, 8, 16, 13, 24, 20, 14, 38, 66, 12]
-    if dataset == "freebase":
-        return [2, 151, 0, 3, 4, 145, 1, 1025, 6, 96, 25, 222, 35, 29, 9, 8, 5, 646, 32, 315, 12, 11, 1028, 648, 989, 106, 371, 10, 317, 7, 316, 31, 344, 3395, 225, 3713, 3711, 3715, 30, 730, 1168, 60, 172, 97, 61, 447, 74, 311, 75, 647, 22, 152, 236, 1165, 1162, 1164, 3712, 649, 11009, 34, 1163, 987, 533, 154, 271, 23, 21, 153, 20, 3026, 985, 47, 140, 107, 224, 645, 46, 36, 6100, 59, 62, 7042, 986, 231, 84, 86, 3191, 2877, 1448, 3520, 3517]
-    return None
 
 
 def run(cfg) -> int:
@@ -36,18 +28,23 @@ def run(cfg) -> int:
     curve_path.write_text("", encoding="utf-8")
 
     large_graph = cfg.dataset in {"freebase", "wikidata5m"}
+    train_relations = (
+        select_relation_head(facts, 0.7 if cfg.dataset == "wikidata5m" else 0.8)
+        if large_graph else None
+    )
     model, args, final_metrics = train_once(
         facts, selected_inverse, cfg,
         cfg.steps,
         "profile" if large_graph else "final",
         collect_curve=not large_graph,
-        target_relations=_large_graph_train_relations(cfg.dataset),
+        target_relations=train_relations,
     )
     profile = None
     if large_graph:
         selected = select_relations(final_metrics, 0.8)
         profile = {
             "threshold": 0.8,
+            "trained_relations": train_relations,
             "selected_relations": selected,
             "base_fact_rate": final_metrics.fact_rate,
         }

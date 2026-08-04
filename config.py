@@ -12,14 +12,14 @@ def parse_config(argv: list[str] | None = None) -> SimpleNamespace:
     parser = argparse.ArgumentParser(description="Reproduce MiniKG champion compression")
     parser.add_argument(
         "--dataset", required=True,
-        choices=["family", "yago3-10", "wikidata5m", "freebase"],
+        choices=["family", "yago3-10", "codex-s", "codex-m", "codex-l", "wikidata5m", "freebase"],
     )
     ns = parser.parse_args(argv)
     values = json.loads(Path(__file__).with_name("config.json").read_text(encoding="utf-8"))
     if set(values) != {"kappa", "K", "L", "steps"}:
         parser.error("the recipe must contain exactly kappa, K, L, and steps")
-    if set(values["steps"]) != {"family", "yago3-10", "wikidata5m", "freebase"}:
-        parser.error("steps must cover all four datasets")
+    if set(values["steps"]) != {"family", "yago3-10", "codex-s", "codex-m", "codex-l", "wikidata5m", "freebase"}:
+        parser.error("steps must cover all datasets")
     if any(float(values[key]) <= 0 for key in ("kappa", "K", "L")) or any(
         int(step) <= 0 for step in values["steps"].values()
     ):

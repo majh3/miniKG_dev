@@ -5,6 +5,9 @@
   "steps": {
     "family": 3200,
     "yago3-10": 16000,
+    "codex-s": 4000,
+    "codex-m": 5400,
+    "codex-l": 5400,
     "wikidata5m": 750,
     "freebase": 900
   }

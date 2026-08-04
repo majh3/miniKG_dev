@@ -148,7 +148,7 @@ def train_once(facts: np.ndarray, orientation_inverse: np.ndarray, cfg: SimpleNa
                write_query_bundle: bool = True):
     device = torch.device("cuda")
     entity_count, relation_count = infer_entity_relation_count(facts)
-    args = build_backend_args(cfg, orientation_inverse, device)
+    args = build_backend_args(cfg, orientation_inverse, device, target_relations)
     facts_tensor = facts_to_tensor(facts, device)
     graph = Graph(facts_tensor)
     truth_by_query = (build_truth_by_query(facts, orientation_inverse)
