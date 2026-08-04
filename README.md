@@ -12,16 +12,26 @@ CUDA and a working C++/CUDA compiler are required.
 
 ## Data
 
-Place the datasets at:
+Family and YAGO3-10 are included:
 
 ```text
 data/family/all_id.txt
 data/yago3-10/all_id.txt
+```
+
+Download the large datasets from:
+
+- Wikidata5M: https://github.com/THU-KEG/KEPLER#pre-training
+- Freebase: https://aws-dglke.readthedocs.io/en/latest/train.html
+
+Prepare them as:
+
+```text
 data/wikidata5m/all_id.npy
 data/freebase/train.npy
 ```
 
-Each line must contain integer IDs in this order:
+Rows must contain integer IDs in this order:
 
 ```text
 head relation tail
