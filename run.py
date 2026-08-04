@@ -38,7 +38,7 @@ def run(cfg) -> int:
     large_graph = cfg.dataset in {"freebase", "wikidata5m"}
     model, args, final_metrics = train_once(
         facts, selected_inverse, cfg,
-        3200 if cfg.dataset == "family" else 16000 if cfg.dataset == "yago3-10" else 750 if cfg.dataset == "wikidata5m" else 900,
+        cfg.steps,
         "profile" if large_graph else "final",
         collect_curve=not large_graph,
         target_relations=_large_graph_train_relations(cfg.dataset),

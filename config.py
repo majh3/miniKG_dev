@@ -14,7 +14,10 @@ def parse_config(argv: list[str] | None = None) -> SimpleNamespace:
         "--dataset", required=True,
         choices=["family", "yago3-10", "wikidata5m", "freebase"],
     )
+    parser.add_argument("--steps", type=int)
     ns = parser.parse_args(argv)
+    if ns.steps is not None and ns.steps <= 0:
+        parser.error("steps must be positive")
     values = json.loads(Path(__file__).with_name("config.json").read_text(encoding="utf-8"))
     if set(values) != {"kappa", "K", "L", "profile_threshold", "decode_prune_threshold"}:
         parser.error(
@@ -26,6 +29,13 @@ def parse_config(argv: list[str] | None = None) -> SimpleNamespace:
         parser.error("profile and decode pruning thresholds must not exceed one")
     return SimpleNamespace(
         dataset=ns.dataset,
+        steps=(
+            ns.steps if ns.steps is not None
+            else 3200 if ns.dataset == "family"
+            else 16000 if ns.dataset == "yago3-10"
+            else 750 if ns.dataset == "wikidata5m"
+            else 900
+        ),
         kappa=float(values["kappa"]),
         K=int(values["K"]),
         L=int(values["L"]),
