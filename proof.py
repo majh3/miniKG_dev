@@ -22,18 +22,16 @@ try:
         normalize_sparse3d,
         prune_sparse3d_active_entities,
     )
-    from .paths import SRC_UNIFY_ALL
+    from .paths import SRC_DIR
 except ImportError:                           
     from drum import SupplyGatedDRUM, normalize_sparse3d, prune_sparse3d_active_entities
     try:
-        from paths import SRC_UNIFY_ALL
+        from paths import SRC_DIR
     except ImportError:
-        SRC_UNIFY_ALL = Path(__file__).resolve().parent
+        SRC_DIR = Path(__file__).resolve().parent / "src"
 
-SRC_DIR = SRC_UNIFY_ALL / "src"
-for path in (SRC_UNIFY_ALL, SRC_DIR):
-    if str(path) not in sys.path:
-        sys.path.append(str(path))
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
 
 _KERNEL_OPS = None
 
@@ -41,7 +39,7 @@ _KERNEL_OPS = None
 def kernel_ops():
     global _KERNEL_OPS
     if _KERNEL_OPS is None:
-        from src.model_mmDRUM_kernel_sp import (
+        from model_mmDRUM_kernel_sp import (
             FastLogFunctionSparse3DTopK,
             build_csr_structure,
             max_sp_3d,

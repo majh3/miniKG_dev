@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-SRC_UNIFY_ALL = Path(__file__).resolve().parent / "src_unify_all"
-if str(SRC_UNIFY_ALL) not in sys.path:
-    sys.path.append(str(SRC_UNIFY_ALL))
-
+SRC_DIR = Path(__file__).resolve().parent / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
