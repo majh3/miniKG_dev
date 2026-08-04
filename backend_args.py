@@ -27,7 +27,7 @@ def build_backend_args(
             else 0 if cfg.dataset in {"family", "wikidata5m"} else 100_000
         ),
         decode_query_prune="rule_first_hop" if large_graph else "none",
-        decode_query_rule_threshold=(cfg.decode_prune_threshold if large_graph else 0.0),
+        decode_query_rule_threshold=(0.2 if large_graph else 0.0),
         decode_batch_size=(64 if cfg.dataset == "freebase" else 512 if large_graph else 4096 if cfg.dataset == "family" else 1024),
         decode_proof_microbatch_size=(64 if cfg.dataset == "freebase" else 256 if cfg.dataset == "wikidata5m" else 0),
         threshold_qsth_query_source=("supply_entities" if cfg.dataset == "family" else "supply_heads"),

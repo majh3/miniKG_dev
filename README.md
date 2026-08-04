@@ -44,11 +44,10 @@ python run.py --dataset family
 python run.py --dataset yago3-10
 python run.py --dataset wikidata5m
 python run.py --dataset freebase
-python run.py --dataset family --steps 1000
 ```
 
-`--steps` overrides the default base-training steps. All datasets use the shared settings in `config.json`. Results are written to `runs/<dataset>/`.
-`profile_threshold` controls relation profiling; `decode_prune_threshold` controls first-hop decode pruning. Both techniques are enabled in code only for Wikidata5M and Freebase. Small graphs use lightweight compression probes and run the full decode once. Large graphs decode once for profiling and once after focused continuation.
+Training steps are set per dataset in the shared `config.json`. Results are written to `runs/<dataset>/`.
+Relation profiling and first-hop decode pruning use fixed defaults and are enabled only for Wikidata5M and Freebase. Small graphs use lightweight compression probes and run the full decode once. Large graphs decode once for profiling and once after focused continuation.
 
 ## Query
 

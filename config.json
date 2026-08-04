@@ -2,6 +2,10 @@
   "kappa": 32,
   "K": 2,
   "L": 16,
-  "profile_threshold": 0.8,
-  "decode_prune_threshold": 0.2
+  "steps": {
+    "family": 3200,
+    "yago3-10": 16000,
+    "wikidata5m": 750,
+    "freebase": 900
+  }
 }

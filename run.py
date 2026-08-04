@@ -45,9 +45,9 @@ def run(cfg) -> int:
     )
     profile = None
     if large_graph:
-        selected = select_relations(final_metrics, cfg.profile_threshold)
+        selected = select_relations(final_metrics, 0.8)
         profile = {
-            "threshold": cfg.profile_threshold,
+            "threshold": 0.8,
             "selected_relations": selected,
             "base_fact_rate": final_metrics.fact_rate,
         }
